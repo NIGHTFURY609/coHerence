@@ -1,6 +1,6 @@
-coHERence - Inclusive Software Testing Playground
+# coHERence - Inclusive Software Testing Playground
 
-The Idea
+## The Idea
 
 Build an AI-powered software testing playground that identifies hidden design biases in digital products by testing them against diverse user profiles and real-world usage scenarios.
 
@@ -8,7 +8,7 @@ Software is often designed around an assumed "default user." This can lead to in
 
 The platform allows developers to put their software into a virtual testing environment and evaluate it against a diverse range of users and situations.
 
-Instead of asking:
+## Instead of asking:
 
 "Does this software work?"
 
@@ -16,7 +16,7 @@ it asks:
 
 "Who does this software work well for, who does it work poorly for, and why?"
 
-How It Works
+## How It Works
 
 A developer provides their software, prototype, or interface.
 
@@ -44,7 +44,7 @@ A particular workflow has a significantly higher failure rate for users with cer
 
 The system identifies the relevant design element, explains the potential reason for the disparity, and suggests ways the design could be improved.
 
-The Core Concept
+## The Core Concept
 
 The platform is essentially:
 
@@ -54,7 +54,7 @@ Developers traditionally test whether their software behaves correctly.
 
 This system tests whether the software behaves fairly and effectively across different kinds of users.
 
-What Makes It Different
+## What Makes It Different
 
 The goal isn't to create an AI that simply pretends to be a woman, man, elderly person, or disabled person.
 
