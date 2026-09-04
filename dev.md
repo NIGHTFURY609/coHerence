@@ -16,15 +16,15 @@ This document outlines the modular team division, contracts, and testing protoco
 
 ## 2. Architecture & Data Flow Contract
 
-Modules communicate exclusively through versioned files on disk (GeoJSON and JSON).
+Modules communicate exclusively through versioned files on disk (GeoJSON and JSON) and lightweight database tables.
 
 ```
 [ Dev 1: Geo Engine ]  ──────>  geo_features.geojson  ──────┐
                                                            │
-[ Dev 2: Workforce Engine ] ──>  workforce_metrics.json ───┼──> [ Dev 3: Scoring & API ] ──> gap_analysis.json
-                                                           │                                      │
-                                                           │                                      ▼
-                                                           └─────────────[ Dev 4: Frontend (via Mock JSON) ]
+[ Dev 2: Workforce Engine ] ──>  workforce_metrics.json ───┼──> [ Dev 3: Scoring, DB & API ] ──> gap_analysis.json
+                                                           │                                            │
+                                                           │                                            ▼
+                                                           └───────────────────[ Dev 4: Frontend (via Mock JSON) ]
 ```
 
 ---
@@ -70,35 +70,43 @@ Modules communicate exclusively through versioned files on disk (GeoJSON and JSO
 
 ---
 
-### Module 3: Gap Scoring, Simulation & API Service (`src/scoring/` & `src/api/`)
+### Module 3: Gap Scoring, Database & API Service (`src/scoring/`, `src/db/` & `src/api/`)
 * **Owner:** Backend Developer 3 (25% Workload)
-* **Domain:** Algorithmic modeling, "What-If" scenario simulation, and API endpoint delivery.
+* **Domain:** Algorithmic modeling, "What-If" simulation, database schemas, authentication, and API endpoints.
 * **Key Tasks:**
   - **Gap Scoring Algorithm:** Implement the mathematical model cross-referencing spatial access ($A$, from Dev 1) with female workforce density ($W$, from Dev 2) to produce the normalized **Facility Desert Index** (0–100).
   - **Simulation Engine:** Implement "What-If" logic calculating score deltas when hypothetical facilities (streetlights, transit hubs) are introduced at given coordinates.
-  - **FastAPI Layer:** REST endpoints for GeoJSON spatial data, workforce metrics, and real-time simulation requests, with automatic fallback to mock payloads.
+  - **Database & Auth (Sign-in):** SQLite / SQLModel schemas (`User`, `SavedScenario`), password hashing, JWT creation, and auth routes (`/api/auth/login`, `/api/auth/register`, `/api/auth/me`).
+  - **DB Seeding CLI:** Ingestion script to seed Dev 1 & Dev 2's JSON/GeoJSON outputs directly into the DB tables.
+  - **FastAPI Layer:** REST endpoints for GeoJSON spatial data, workforce metrics, auth, and real-time simulation requests, with automatic fallback to mock payloads.
 * **CLI & API Contract:**
   ```bash
   # Standalone self-test of scoring math & simulation:
   python -m src.scoring --test
 
-  # Standalone self-test of API routes against mock data:
+  # Initialize and seed database:
+  python -m src.db --init
+  python -m src.db --seed
+
+  # Standalone self-test of API routes and Auth against mock data:
   python -m src.api --test
+  python -m src.api --test-auth
 
   # Start development server:
   uvicorn src.api.main:app --reload --port 8000
   ```
-* **Output Artifact:** `data/gap_analysis.json` and REST endpoints.
+* **Output Artifact:** `data/gap_analysis.json`, `coherence.db`, and REST endpoints.
 
 ---
 
 ### Module 4: Geospatial & Analytics UI (`frontend/`)
 * **Owner:** Frontend Developer (25% Workload)
-* **Domain:** Interactive map, visual charts, simulation controls, and filter interface.
+* **Domain:** Interactive map, visual charts, simulation controls, auth UI, and filter interface.
 * **Key Tasks:**
   - **Interactive Map View (Layer A):** Choropleth visualization of facility desert zones + clickable POI facility markers using MapLibre GL / Mapbox.
   - **Workforce Analytics View (Layer B):** Clean charts displaying regional FLFPR, sector distributions, and gap rankings using Recharts / Chart.js.
   - **Simulation Drawer:** Interactive UI controls to simulate adding public infrastructure and visualize score improvements.
+  - **Auth Integration:** Login/Register modal, storing JWT in `localStorage`/cookies, and route protection for planner-specific dashboards.
 * **CLI / Script Contract:**
   ```bash
   # Run frontend purely on local mock JSON (zero backend dependency):
@@ -110,7 +118,47 @@ Modules communicate exclusively through versioned files on disk (GeoJSON and JSO
 
 ---
 
-## 4. Mandatory Pre-Report Test Protocol
+## 4. Database Architecture & Authentication Strategy
+
+CoHERence handles two distinct categories of data:
+
+```
+                          DATABASE (SQLite via SQLModel)
+                                    │
+           ┌────────────────────────┴────────────────────────┐
+           ▼                                                 ▼
+   1. Analytical / GIS Data                         2. User & Session Data
+   (Read-heavy, populated by Dev 1 & 2)             (Read/Write, handled by Dev 3)
+   ──────────────────────────────────               ──────────────────────────────
+   • Facilities (toilets, lights, transit)          • Users (email, hashed password, role)
+   • Ward / District Boundaries                     • User Roles (Urban Planner, NGO, Admin)
+   • Workforce Indicators (PLFS/Census)             • Saved "What-If" Simulations
+   • Precomputed Gap / Desert Scores                • Bookmarked / Exported Reports
+```
+
+### Who Handles What?
+1. **Backend Dev 3 (Owner):** 
+   - Defines database tables using **SQLModel / SQLAlchemy**.
+   - Handles password hashing (`passlib[bcrypt]`) and JWT token issuing (`python-jose`).
+   - Implements authentication endpoints (`/api/auth/register`, `/api/auth/login`, `/api/auth/me`).
+   - Implements scenarios endpoints (`/api/scenarios/save`, `/api/scenarios/list`).
+2. **Frontend Dev 4:** 
+   - Builds the Login/Register modal.
+   - Saves the bearer token on login and attaches `Authorization: Bearer <token>` to protected API requests.
+3. **Backend Dev 1 & 2:** 
+   - Do NOT need to write SQL queries. They output standardized GeoJSON / JSON files, which Dev 3's seed script imports.
+
+### Recommended Stack (Zero Docker Overhead)
+* **SQLite + SQLModel:**
+  - Stored in a single local file (`coherence.db`).
+  - Zero server configuration, zero Docker RAM overhead, and native Python support.
+  - Seamless migration path: changing the connection string to `postgresql://...` converts it into production PostgreSQL/Supabase without rewriting queries.
+* **Mock Auth Bypass for Teammates:**
+  - To prevent auth from blocking other developers during testing, Dev 3 includes an optional bypass flag (`--no-auth`) or pre-configured `MOCK_BEARER_TOKEN` in the API service.
+
+---
+
+## 5. Mandatory Pre-Report Test Protocol
 
 To ensure code quality and independence, every developer must follow this 3-step cycle before reporting progress or submitting code:
 
@@ -127,11 +175,14 @@ To ensure code quality and independence, every developer must follow this 3-step
    ```bash
    # Example: Anyone can verify Dev 1's work in 2 seconds
    python -m src.geo --test
+
+   # Example: Anyone can verify Dev 3's DB and Auth in 2 seconds
+   python -m src.api --test-auth
    ```
 
 ---
 
-## 5. Development Environment: `venv` Over Docker
+## 6. Development Environment: `venv` Over Docker
 
 * **No Docker overhead:** Docker is not required for local development to avoid memory and CPU bottlenecks during GIS data processing.
 * **Python virtual environment:**
