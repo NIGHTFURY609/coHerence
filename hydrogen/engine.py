@@ -6,6 +6,7 @@ import math
 from collections import defaultdict
 
 from hydrogen.constants import (
+    FRICTION_COMPONENT_METRICS,
     GAP_REF,
     METRIC_FAMILY,
     METRIC_KIND,
@@ -13,6 +14,7 @@ from hydrogen.constants import (
     METRIC_WEIGHT,
     POOR_BASELINE_RATE,
     RATE_METRICS,
+    SCORE_100_METRICS,
     SCORING_POLICY,
     SEVERITY_ORDER,
 )
@@ -144,6 +146,9 @@ def _skip_label(row: Disparity) -> str | None:
     if metric in RATE_METRICS:
         if not (0.0 <= baseline <= 1.0 and 0.0 <= constrained <= 1.0):
             return metric
+    elif metric in SCORE_100_METRICS:
+        if not (0.0 <= baseline <= 100.0 and 0.0 <= constrained <= 100.0):
+            return metric
     elif baseline < 0.0 or constrained < 0.0:
         return metric
     return None
@@ -169,6 +174,21 @@ def _collapse_families(rows: list[Disparity]) -> tuple[list[Disparity], list[str
 
         winner_index, _winner = min(items, key=key)
         winners.add(winner_index)
+
+    groups_with_composite = {
+        row.disadvantaged_group
+        for row in rows
+        if row.metric == "composite_friction_score"
+    }
+    if groups_with_composite:
+        winners = {
+            index
+            for index in winners
+            if not (
+                rows[index].metric in FRICTION_COMPONENT_METRICS
+                and rows[index].disadvantaged_group in groups_with_composite
+            )
+        }
 
     kept: list[Disparity] = []
     collapsed: list[str] = []
