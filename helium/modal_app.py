@@ -116,11 +116,18 @@ class HeliumGPU:
                 add_generation_prompt=True,
             )
         params = SamplingParams(max_tokens=1024, temperature=0.0)
+        # apply_chat_template only renders <|image_pad|> placeholders into the
+        # prompt text; the pixels have to be handed to vLLM separately. Passing
+        # the bare string leaves those placeholders backed by nothing and the
+        # model describes an image it never saw.
+        request: dict = {"prompt": prompt}
+        if image_b64:
+            request["multi_modal_data"] = {"image": _decode_image(image_b64)}
         with self._turn:
             try:
-                result = llm.generate([prompt], params, use_tqdm=False)[0]
+                result = llm.generate([request], params, use_tqdm=False)[0]
             except TypeError:
-                result = llm.generate([prompt], params)[0]
+                result = llm.generate([request], params)[0]
         return result.outputs[0].text
 
     @modal.method()
@@ -155,6 +162,16 @@ class HeliumGPU:
         if getattr(output, "finish_reason", None) == "length":
             raise ValueError("Helium output truncated (max_tokens); raise max_tokens")
         return _require_both_fields(_json_only(output.text))
+
+
+def _decode_image(image_b64: str):
+    """Base64 PNG -> PIL image for vLLM's multi_modal_data."""
+    import base64
+    import io
+
+    from PIL import Image
+
+    return Image.open(io.BytesIO(base64.b64decode(image_b64))).convert("RGB")
 
 
 def _share_gpu_utilization(ceiling: float) -> float:
