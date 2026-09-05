@@ -1,8 +1,8 @@
 """GPU lookup. diagnose() and ModalLLMClient do not branch on cold vs warm.
 
 Flip helium.constants.HELIUM_RUNTIME (or env HELIUM_RUNTIME):
-  ephemeral — app.run() per call; container boots each time (v1 default)
-  deployed  — Cls.from_name; no boot if a replica is already up
+  deployed  — Cls.from_name; replica stays up (min_containers=1). Default.
+  ephemeral — app.run() per call; container boots each time.
 
 Never import helium.modal_app while a live `modal run` is already up.
 That import is a second module/App and makes Modal mount PythonPackage:helium

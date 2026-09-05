@@ -17,8 +17,8 @@ def test_report_model_is_qwen_27b_text():
     assert "VL" not in REPORT_MODEL
 
 
-def test_runtime_default_is_ephemeral():
-    assert HELIUM_RUNTIME == "ephemeral"
+def test_runtime_default_is_deployed():
+    assert HELIUM_RUNTIME == "deployed"
 
 
 def test_helium_kv_cache_is_8_gib():
@@ -175,7 +175,7 @@ def test_ephemeral_reuses_live_modal_run(monkeypatch):
         raise AssertionError("must not import/start a second Modal app")
 
     monkeypatch.setattr(rt, "_deployed", boom)
-    monkeypatch.delenv("HELIUM_RUNTIME", raising=False)
+    monkeypatch.setenv("HELIUM_RUNTIME", "ephemeral")
     assert rt.complete_on_gpu("sys", "usr") == '{"diagnosis":"d","remediation":"r"}'
 
 
@@ -260,18 +260,18 @@ def test_runtime_dispatch_ephemeral(monkeypatch):
     import helium.runtime as rt
 
     calls: list[str] = []
-    monkeypatch.delenv("HELIUM_RUNTIME", raising=False)
+    monkeypatch.setenv("HELIUM_RUNTIME", "ephemeral")
     monkeypatch.setattr(rt, "_ephemeral", lambda method, *a: calls.append("ephemeral") or '{"ok":true}')
     monkeypatch.setattr(rt, "_deployed", lambda method, *a: calls.append("deployed") or '{"ok":false}')
     assert rt.complete_on_gpu("sys", "usr") == '{"ok":true}'
     assert calls == ["ephemeral"]
 
 
-def test_runtime_dispatch_deployed_via_env(monkeypatch):
+def test_runtime_dispatch_deployed_is_default(monkeypatch):
     import helium.runtime as rt
 
     calls: list[str] = []
-    monkeypatch.setenv("HELIUM_RUNTIME", "deployed")
+    monkeypatch.delenv("HELIUM_RUNTIME", raising=False)
     monkeypatch.setattr(rt, "_ephemeral", lambda method, *a: calls.append("ephemeral") or '{"ok":false}')
     monkeypatch.setattr(rt, "_deployed", lambda method, *a: calls.append("deployed") or '{"ok":true}')
     assert rt.current_runtime() == "deployed"
@@ -309,3 +309,7 @@ def test_modal_app_constants_match_package():
     assert "9B" in m.OXYGEN_MODEL
     assert m.OXYGEN_KV_CACHE_MEMORY_BYTES == 4 * 1024**3
     assert m.MAX_NUM_SEQS == 8
+    assert m.FLUORINE_MODEL == c.FLUORINE_MODEL
+    assert "26B-A4B-it" in m.FLUORINE_MODEL
+    assert m.FLUORINE_KV_CACHE_MEMORY_BYTES == 8 * 1024**3
+    assert m.FLUORINE_GPU_MEMORY_UTILIZATION < 0.5

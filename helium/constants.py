@@ -22,11 +22,16 @@ OXYGEN_MODEL = "Qwen/Qwen3.5-9B"
 OXYGEN_KV_CACHE_GIB = 4
 OXYGEN_KV_CACHE_MEMORY_BYTES = OXYGEN_KV_CACHE_GIB * 1024**3
 OXYGEN_GPU_MEMORY_UTILIZATION = 0.35
+# Fourth engine: Gemma 4 26B-A4B-IT vision (~52 GiB weights + 8 GiB KV).
+# Loads last; ceiling 0.32 of the card, also capped to remaining free.
+FLUORINE_MODEL = "google/gemma-4-26B-A4B-it"
+FLUORINE_KV_CACHE_GIB = 8
+FLUORINE_KV_CACHE_MEMORY_BYTES = FLUORINE_KV_CACHE_GIB * 1024**3
+FLUORINE_GPU_MEMORY_UTILIZATION = 0.32
 
 MODAL_APP_NAME = "coherence-helium"
 HELIUM_CLS_NAME = "HeliumGPU"
 
-# ephemeral: each live call boots a container (cold start). v1 default.
-# deployed:  Cls.from_name after `modal deploy helium/modal_app.py`.
-# Env HELIUM_RUNTIME overrides this at call time (see helium.runtime).
-HELIUM_RUNTIME = "ephemeral"
+# deployed: Cls.from_name after `modal deploy` (min_containers=1, always on).
+# ephemeral: app.run() per call (cold start). Env HELIUM_RUNTIME overrides.
+HELIUM_RUNTIME = "deployed"

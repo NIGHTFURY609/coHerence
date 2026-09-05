@@ -26,6 +26,9 @@ NITROGEN_KV_CACHE_MEMORY_BYTES = 8 * 1024**3
 OXYGEN_MODEL = "Qwen/Qwen3.5-9B"
 OXYGEN_KV_CACHE_MEMORY_BYTES = 4 * 1024**3
 OXYGEN_GPU_MEMORY_UTILIZATION = 0.35
+FLUORINE_MODEL = "google/gemma-4-26B-A4B-it"
+FLUORINE_KV_CACHE_MEMORY_BYTES = 8 * 1024**3
+FLUORINE_GPU_MEMORY_UTILIZATION = 0.32
 MODAL_APP_NAME = "coherence-helium"
 
 HELIUM_JSON_SCHEMA = {
@@ -56,12 +59,14 @@ image = (
     gpu=GPU,
     image=image,
     timeout=60 * 60,
-    scaledown_window=10 * 60,
+    startup_timeout=60 * 60,
+    scaledown_window=60 * 60,
+    min_containers=1,
     max_containers=1,
     volumes={"/root/.cache/huggingface": hf_cache},
 )
 class HeliumGPU:
-    """One B300. Helium + Nitrogen + Oxygen resident; generates take turns."""
+    """One B300. Helium + Nitrogen + Oxygen + Fluorine; generates take turns."""
 
     @modal.enter()
     def load(self) -> None:
@@ -71,6 +76,7 @@ class HeliumGPU:
         self.helium = _make_llm()
         self.nitrogen = _make_nitrogen_llm()
         self.oxygen = _make_oxygen_llm()
+        self.fluorine = _make_fluorine_llm()
 
     def _ensure_nitrogen(self):
         if getattr(self, "nitrogen", None) is None:
@@ -90,7 +96,53 @@ class HeliumGPU:
             "helium": REPORT_MODEL,
             "nitrogen": NITROGEN_MODEL,
             "oxygen": OXYGEN_MODEL,
+            "fluorine": FLUORINE_MODEL,
         }
+
+    @modal.method()
+    def fluorine_complete(
+        self, system: str, user: str, image_b64: str | None = None
+    ) -> str:
+        from vllm import SamplingParams
+
+        tokenizer = self.fluorine.get_tokenizer()
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        if image_b64:
+            messages.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/png;base64,{image_b64}"},
+                        },
+                        {"type": "text", "text": user},
+                    ],
+                }
+            )
+        else:
+            messages.append({"role": "user", "content": user})
+        try:
+            prompt = tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+        except TypeError:
+            prompt = tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+        params = SamplingParams(max_tokens=1024, temperature=0.0)
+        with self._turn:
+            try:
+                result = self.fluorine.generate([prompt], params, use_tqdm=False)[0]
+            except TypeError:
+                result = self.fluorine.generate([prompt], params)[0]
+        return result.outputs[0].text
 
     @modal.method()
     def oxygen_complete(self, system: str, user: str) -> str:
@@ -260,6 +312,15 @@ def _make_oxygen_llm():
     )
 
 
+def _make_fluorine_llm():
+    return _make_engine(
+        FLUORINE_MODEL,
+        FLUORINE_KV_CACHE_MEMORY_BYTES,
+        FLUORINE_GPU_MEMORY_UTILIZATION,
+        multimodal=True,
+    )
+
+
 def _sampling_params():
     from vllm import SamplingParams
 
@@ -346,7 +407,7 @@ def pull_nitrogen() -> None:
 @app.local_entrypoint()
 def warm_all() -> None:
     print(
-        "Loading Helium + Nitrogen + Oxygen on one B300 "
+        "Loading Helium + Nitrogen + Oxygen + Fluorine on one B300 "
         f"(max_num_seqs={MAX_NUM_SEQS})"
     )
     names = HeliumGPU().load_all.remote()
