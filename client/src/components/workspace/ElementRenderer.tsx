@@ -22,8 +22,10 @@ import { resolveEmbed, type EmbedInfo } from "@/lib/embedHelper";
 
 export default function ElementRenderer({
   element,
+  zIndex,
 }: {
   element: WorkspaceElement;
+  zIndex?: number;
 }) {
   const {
     selectedIds,
@@ -141,6 +143,7 @@ export default function ElementRenderer({
     height: element.height,
     transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
     opacity: element.opacity,
+    zIndex: zIndex ?? undefined,
   };
 
   const renderContent = () => {
@@ -247,8 +250,12 @@ export default function ElementRenderer({
                 overflow: "hidden",
               }}
             >
-              {children.map((child) => (
-                <ElementRenderer key={child.id} element={child} />
+              {children.map((child, childIdx) => (
+                <ElementRenderer
+                  key={child.id}
+                  element={child}
+                  zIndex={childIdx + 1}
+                />
               ))}
             </div>
           </>

@@ -302,8 +302,8 @@ export default function WorkspaceCanvas() {
         className="ws-canvas-transform"
         style={{ transform: `translate(${canvas.panX}px, ${canvas.panY}px) scale(${canvas.zoom})` }}
       >
-        {topLevelElements.map((el) => (
-          <ElementRenderer key={el.id} element={el} />
+        {topLevelElements.map((el, index) => (
+          <ElementRenderer key={el.id} element={el} zIndex={index + 1} />
         ))}
       </div>
 
