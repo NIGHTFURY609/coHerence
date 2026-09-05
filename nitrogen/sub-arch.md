@@ -55,6 +55,6 @@ modal run helium/modal_app.py::pull_nitrogen
 
 First run downloads ~62 GB into the Modal HF volume, then loads the model (~8 GiB KV, `max_num_seqs=8`, `gpu_memory_utilization=0.65` so it fits beside Helium). Later runs reuse the volume.
 
-One container (`max_containers=1`). Helium and Nitrogen generate under one lock — they wait their turn on the same B300.
+One container (`max_containers=1`). Helium, Nitrogen, and Oxygen (Qwen3.5-9B) generate under one lock — they wait their turn on the same B300.
 
 Helium `complete` still loads Qwen 27B on enter. Nitrogen loads **lazily** on `load_nitrogen` / first `nitrogen_complete` so a Helium-only smoke does not pull 30B.

@@ -16,6 +16,12 @@ GPU_MEMORY_UTILIZATION = 0.26
 # Nitrogen loads second (Helium already resident). 0.92 of 268 GiB is 246;
 # only ~206 GiB is free then. 0.65 * 268 ≈ 174 < 206.
 NITROGEN_GPU_MEMORY_UTILIZATION = 0.65
+# Third engine: Qwen3.5-9B text for Dev 2. ~19 GiB weights + 4 GiB KV.
+# Ceiling 0.35 of the *card*; _share_gpu_utilization also caps to free memory.
+OXYGEN_MODEL = "Qwen/Qwen3.5-9B"
+OXYGEN_KV_CACHE_GIB = 4
+OXYGEN_KV_CACHE_MEMORY_BYTES = OXYGEN_KV_CACHE_GIB * 1024**3
+OXYGEN_GPU_MEMORY_UTILIZATION = 0.35
 
 MODAL_APP_NAME = "coherence-helium"
 HELIUM_CLS_NAME = "HeliumGPU"

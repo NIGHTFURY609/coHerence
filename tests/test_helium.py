@@ -305,3 +305,7 @@ def test_modal_app_constants_match_package():
     assert "Qwen3-VL-30B" in m.NITROGEN_MODEL
     assert m.NITROGEN_GPU_MEMORY_UTILIZATION == c.NITROGEN_GPU_MEMORY_UTILIZATION
     assert m.NITROGEN_GPU_MEMORY_UTILIZATION < 0.77
+    assert m.OXYGEN_MODEL == c.OXYGEN_MODEL
+    assert "9B" in m.OXYGEN_MODEL
+    assert m.OXYGEN_KV_CACHE_MEMORY_BYTES == 4 * 1024**3
+    assert m.MAX_NUM_SEQS == 8

@@ -23,6 +23,9 @@ NITROGEN_GPU_MEMORY_UTILIZATION = 0.65
 REPORT_MODEL = "Qwen/Qwen3.6-27B"
 NITROGEN_MODEL = "Qwen/Qwen3-VL-30B-A3B-Instruct"
 NITROGEN_KV_CACHE_MEMORY_BYTES = 8 * 1024**3
+OXYGEN_MODEL = "Qwen/Qwen3.5-9B"
+OXYGEN_KV_CACHE_MEMORY_BYTES = 4 * 1024**3
+OXYGEN_GPU_MEMORY_UTILIZATION = 0.35
 MODAL_APP_NAME = "coherence-helium"
 
 HELIUM_JSON_SCHEMA = {
@@ -58,7 +61,7 @@ image = (
     volumes={"/root/.cache/huggingface": hf_cache},
 )
 class HeliumGPU:
-    """One B300 container. Helium and Nitrogen both resident; generates take turns."""
+    """One B300. Helium + Nitrogen + Oxygen resident; generates take turns."""
 
     @modal.enter()
     def load(self) -> None:
@@ -66,10 +69,11 @@ class HeliumGPU:
 
         self._turn = threading.Lock()
         self.helium = _make_llm()
-        self.nitrogen = None
+        self.nitrogen = _make_nitrogen_llm()
+        self.oxygen = _make_oxygen_llm()
 
     def _ensure_nitrogen(self):
-        if self.nitrogen is None:
+        if getattr(self, "nitrogen", None) is None:
             self.nitrogen = _make_nitrogen_llm()
         return self.nitrogen
 
@@ -78,6 +82,45 @@ class HeliumGPU:
         """Download Qwen3-VL-30B onto the shared HF volume and load it."""
         self._ensure_nitrogen()
         return NITROGEN_MODEL
+
+    @modal.method()
+    def load_all(self) -> dict:
+        """All three engines already loaded in enter(); returns their ids."""
+        return {
+            "helium": REPORT_MODEL,
+            "nitrogen": NITROGEN_MODEL,
+            "oxygen": OXYGEN_MODEL,
+        }
+
+    @modal.method()
+    def oxygen_complete(self, system: str, user: str) -> str:
+        from vllm import SamplingParams
+
+        tokenizer = self.oxygen.get_tokenizer()
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": user})
+        try:
+            prompt = tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=False,
+            )
+        except TypeError:
+            prompt = tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+        params = SamplingParams(max_tokens=1024, temperature=0.0)
+        with self._turn:
+            try:
+                result = self.oxygen.generate([prompt], params, use_tqdm=False)[0]
+            except TypeError:
+                result = self.oxygen.generate([prompt], params)[0]
+        return result.outputs[0].text
 
     @modal.method()
     def nitrogen_complete(
@@ -209,6 +252,14 @@ def _make_nitrogen_llm():
     )
 
 
+def _make_oxygen_llm():
+    return _make_engine(
+        OXYGEN_MODEL,
+        OXYGEN_KV_CACHE_MEMORY_BYTES,
+        OXYGEN_GPU_MEMORY_UTILIZATION,
+    )
+
+
 def _sampling_params():
     from vllm import SamplingParams
 
@@ -290,3 +341,13 @@ def pull_nitrogen() -> None:
     print(f"Pulling {NITROGEN_MODEL} onto the shared B300 (helium-hf-cache)")
     name = HeliumGPU().load_nitrogen.remote()
     print(f"ready: {name}")
+
+
+@app.local_entrypoint()
+def warm_all() -> None:
+    print(
+        "Loading Helium + Nitrogen + Oxygen on one B300 "
+        f"(max_num_seqs={MAX_NUM_SEQS})"
+    )
+    names = HeliumGPU().load_all.remote()
+    print(json.dumps(names, indent=2), flush=True)
