@@ -3,8 +3,16 @@
 REPORT_MODEL = "Qwen/Qwen3.6-27B"
 MAX_MODEL_LEN = 8192
 GPU = "B300"
-# Leave room on the B300 for other models. 0.42 ≈ 110 GiB of 268, not 187 GiB KV.
-GPU_MEMORY_UTILIZATION = 0.42
+# Helium KV pool. Weights stay ~52 GiB; this is not model quality.
+KV_CACHE_GIB = 8
+KV_CACHE_MEMORY_BYTES = KV_CACHE_GIB * 1024**3
+# Qwen3.6 GDN/Mamba: one cache block per in-flight sequence. 8 GiB KV
+# only has ~167 blocks; vLLM default max_num_seqs=1024 then fails.
+# Helium is 1–2 jobs. Do not raise KV to satisfy the 1024 default.
+MAX_NUM_SEQS = 8
+# Fallback only if this vLLM build has no kv_cache_memory* kwarg.
+# 0.26 ≈ weights + 8 GiB KV on a 268 GiB card.
+GPU_MEMORY_UTILIZATION = 0.26
 
 MODAL_APP_NAME = "coherence-helium"
 HELIUM_CLS_NAME = "HeliumGPU"

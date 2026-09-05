@@ -1,7 +1,7 @@
 """Helium on one shared B300. From repo root: modal run helium/modal_app.py
 
 Same run: Hydrogen scores on the local CPU process, Helium completes on GPU.
-Same replica: other team models load here (leave 0.42 util). Do not add
+Same replica: other team models load here (Helium KV is 8 GiB). Do not add
 another @app.cls(gpu="B300"). GPU methods must not import hydrogen.
 
 Keep REPORT_MODEL / GPU settings in sync with helium/constants.py.
@@ -15,7 +15,10 @@ import modal
 
 GPU = "B300"
 MAX_MODEL_LEN = 8192
-GPU_MEMORY_UTILIZATION = 0.42
+KV_CACHE_GIB = 8
+KV_CACHE_MEMORY_BYTES = KV_CACHE_GIB * 1024**3
+MAX_NUM_SEQS = 8
+GPU_MEMORY_UTILIZATION = 0.26
 REPORT_MODEL = "Qwen/Qwen3.6-27B"
 MODAL_APP_NAME = "coherence-helium"
 
@@ -55,14 +58,7 @@ class HeliumGPU:
 
     @modal.enter()
     def load(self) -> None:
-        from vllm import LLM
-
-        self.helium = LLM(
-            model=REPORT_MODEL,
-            max_model_len=MAX_MODEL_LEN,
-            gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
-            dtype="auto",
-        )
+        self.helium = _make_llm()
 
     @modal.method()
     def complete(self, system: str, user: str) -> str:
@@ -87,14 +83,37 @@ class HeliumGPU:
                 add_generation_prompt=True,
             )
         params = _sampling_params()
-        raw = self.helium.generate([prompt], params)[0].outputs[0].text
-        return _require_both_fields(_json_only(raw))
+        try:
+            result = self.helium.generate([prompt], params, use_tqdm=False)[0]
+        except TypeError:
+            result = self.helium.generate([prompt], params)[0]
+        output = result.outputs[0]
+        if getattr(output, "finish_reason", None) == "length":
+            raise ValueError("Helium output truncated (max_tokens); raise max_tokens")
+        return _require_both_fields(_json_only(output.text))
+
+
+def _make_llm():
+    from vllm import LLM
+
+    base = {
+        "model": REPORT_MODEL,
+        "max_model_len": MAX_MODEL_LEN,
+        "max_num_seqs": MAX_NUM_SEQS,
+        "dtype": "auto",
+    }
+    for key in ("kv_cache_memory_bytes", "kv_cache_memory"):
+        try:
+            return LLM(**base, **{key: KV_CACHE_MEMORY_BYTES})
+        except TypeError:
+            continue
+    return LLM(**base, gpu_memory_utilization=GPU_MEMORY_UTILIZATION)
 
 
 def _sampling_params():
     from vllm import SamplingParams
 
-    kwargs = {"max_tokens": 400, "temperature": 0.0}
+    kwargs = {"max_tokens": 1024, "temperature": 0.0}
     try:
         from vllm.sampling_params import StructuredOutputsParams
 
@@ -119,15 +138,21 @@ def _json_only(raw: str) -> str:
     return text
 
 
+def _finished_sentence(text: str) -> bool:
+    t = text.strip()
+    return bool(t) and t[-1] in ".!?"
+
+
 def _require_both_fields(raw: str) -> str:
     payload = json.loads(raw)
-    if not payload.get("diagnosis") or not payload.get("remediation"):
+    diagnosis = str(payload.get("diagnosis") or "").strip()
+    remediation = str(payload.get("remediation") or "").strip()
+    if not diagnosis or not remediation:
         raise ValueError("Helium JSON must include non-empty diagnosis and remediation")
+    if not _finished_sentence(diagnosis) or not _finished_sentence(remediation):
+        raise ValueError("Helium diagnosis and remediation must be complete sentences")
     return json.dumps(
-        {
-            "diagnosis": str(payload["diagnosis"]).strip(),
-            "remediation": str(payload["remediation"]).strip(),
-        },
+        {"diagnosis": diagnosis, "remediation": remediation},
         ensure_ascii=False,
     )
 
@@ -141,10 +166,11 @@ def main() -> None:
 
     print(
         f"Starting Helium on {GPU} with {REPORT_MODEL} "
-        f"(gpu_memory_utilization={GPU_MEMORY_UTILIZATION})"
+        f"(kv_cache={KV_CACHE_GIB} GiB)"
     )
     scored = evaluate(example_bundle(), "rep_example")
     out = diagnose(scored, ModalLLMClient())
+    print()
     print(
         json.dumps(
             {
@@ -153,6 +179,8 @@ def main() -> None:
                 "diagnosis": out.diagnosis,
                 "remediation": out.remediation,
             },
+            indent=2,
             ensure_ascii=False,
-        )
+        ),
+        flush=True,
     )

@@ -174,15 +174,15 @@ Catalog UI may lock **H100**. Helium uses a **custom app**: `@app.cls(gpu="B300"
 | Live client | `ModalLLMClient` / `get_client()`. Tests pass `MockLLMClient`. |
 | Runtime | `helium.runtime.complete_on_gpu`. Default **`ephemeral`** (cold start). |
 | Other models on the same B300 | Allowed for **other teammates** (not Helium calls). One replica; do not start four B300 functions. |
-| KV | `gpu_memory_utilization=0.42`, `max_model_len=8192`. |
+| KV | `kv_cache_memory_bytes` = **8 GiB**, `max_num_seqs=8`, `max_model_len=8192`. |
 | Structured out | JSON schema `HeliumSynthesis` |
 
 Same `modal run` process, two machines in it:
 
 - **CPU (local):** `hydrogen.evaluate` then `helium.diagnose` (prompt + parse). Hydrogen never loads on the GPU.
-- **GPU (one B300):** `HeliumGPU.complete`. Other team models load on **this same class / replica** (`gpu_memory_utilization=0.42` leaves room). Do **not** add another `@app.cls(gpu="B300")`.
+- **GPU (one B300):** `HeliumGPU.complete`. Other team models load on **this same class / replica** (Helium KV is 8 GiB). Do **not** add another `@app.cls(gpu="B300")`.
 
-`diagnose(report)` builds the prompt locally, then `client.complete(system, user)`. The GPU worker is a dumb completer. During `modal run`, reuse the live app — do not start a second one.
+`diagnose(report)` builds the prompt locally in the §6 shape (Hydrogen gap + analyzer facts **with `element_selector`**), then `client.complete(system, user)`. The GPU worker is a dumb completer. During `modal run`, reuse the live app — do not start a second one. The model must emit the §6 report (issues + UI suggestions), naming the actual controls, not a dump of finding ids or score fields.
 
 To drop cold start later (do not rewrite `diagnose`):
 

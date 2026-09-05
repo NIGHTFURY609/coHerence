@@ -21,6 +21,15 @@ def test_runtime_default_is_ephemeral():
     assert HELIUM_RUNTIME == "ephemeral"
 
 
+def test_helium_kv_cache_is_8_gib():
+    from helium.constants import KV_CACHE_GIB, KV_CACHE_MEMORY_BYTES, MAX_NUM_SEQS
+
+    assert KV_CACHE_GIB == 8
+    assert KV_CACHE_MEMORY_BYTES == 8 * 1024**3
+    assert MAX_NUM_SEQS == 8
+    assert MAX_NUM_SEQS <= 167
+
+
 def test_hydrogen_then_helium_locks_score():
     scored = evaluate(example_bundle(), "rep_example")
     assert scored.analyst == "hydrogen"
@@ -57,16 +66,50 @@ def test_prompt_has_gap_and_findings_not_personas():
     assert "ambiguous" in client.last_user.lower()
     assert "prominence" in client.last_user.lower()
     assert "14" in client.last_user
-    assert "3 additional" in client.last_user.lower() or "INTERACTION_EXTRA_ERRORS" in client.last_user
-    assert "UNRESOLVED" in client.last_user
+    assert "button#submit-order" in client.last_user
+    assert "#submit-help" in client.last_user
+    assert "3 additional" in client.last_user.lower() or "additional errors" in client.last_user.lower()
+    assert "find_1" not in client.last_user
+    assert "overall_fairness_score" not in client.last_user
+    assert "attribution_status" not in client.last_user
     assert "woman" not in SYSTEM_PROMPT.lower()
-    assert "prioritize" in SYSTEM_PROMPT.lower()
     assert "do not mention every row" in SYSTEM_PROMPT.lower()
+    assert "unresolved" in SYSTEM_PROMPT.lower()
+
+
+def test_user_prompt_matches_subarch_shape():
+    text = user_prompt(_report())
+    assert "Hydrogen:" in text
+    assert "completion gap = 28 pp" in text
+    assert "Interface:" in text
+    assert "instruction is ambiguous" in text
+    assert "primary action has low visual prominence" in text
+    assert "keyboard navigation requires 14 steps" in text
+    assert "button#submit-order" in text
+    assert "#submit-help" in text
+    assert "constrained profile made 3 additional errors" in text
+    assert "find_1" not in text
+    assert "RESOLVED" not in text
+
+
+def test_system_prompt_is_not_page_specific():
+    lower = SYSTEM_PROMPT.lower()
+    assert "submit-order" not in lower
+    assert "submit-help" not in lower
+    assert "selector" in lower
+    assert "user facts" in lower
 
 
 def test_user_prompt_builder_sets_completion_gap_pp():
     text = user_prompt(_report())
-    assert '"completion_gap_pp": 28' in text
+    assert "completion gap = 28 pp" in text
+    assert brief_gap_pp() == 28
+
+
+def brief_gap_pp():
+    from helium.prompt import brief
+
+    return brief(_report())["hydrogen"]["completion_gap_pp"]
 
 
 def test_empty_model_output_raises():
@@ -149,6 +192,22 @@ def test_bad_json_raises():
         raise AssertionError("expected ValueError")
 
 
+def test_truncated_remediation_is_rejected():
+    class Cut:
+        def complete(self, system: str, user: str) -> str:
+            return (
+                '{"diagnosis": "The constrained path has lower completion.",'
+                ' "remediation": "Increase prominence of the"}'
+            )
+
+    try:
+        diagnose(_report(), Cut())
+    except ValueError as exc:
+        assert "complete" in str(exc).lower()
+    else:
+        raise AssertionError("expected rejection of truncated remediation")
+
+
 def test_missing_remediation_is_rejected():
     class Partial:
         def complete(self, system: str, user: str) -> str:
@@ -164,8 +223,10 @@ def test_missing_remediation_is_rejected():
 def test_system_prompt_forbids_causal_verbs():
     from helium.prompt import SYSTEM_PROMPT as prompt
 
-    assert "driven by" in prompt.lower()
-    assert "do not say the ui facts caused" in prompt.lower() or "do not say one caused" in prompt.lower()
+    lower = prompt.lower()
+    assert "driven by" in lower
+    assert "correlates" in lower
+    assert "do not say the ui facts caused" in lower
 
 
 def test_think_tags_are_stripped():
@@ -235,6 +296,9 @@ def test_modal_app_constants_match_package():
     assert m.REPORT_MODEL == c.REPORT_MODEL
     assert m.GPU == c.GPU
     assert m.GPU_MEMORY_UTILIZATION == c.GPU_MEMORY_UTILIZATION
+    assert m.KV_CACHE_MEMORY_BYTES == c.KV_CACHE_MEMORY_BYTES
+    assert m.KV_CACHE_GIB == 8
+    assert m.MAX_NUM_SEQS == c.MAX_NUM_SEQS
     assert m.MAX_MODEL_LEN == c.MAX_MODEL_LEN
     assert m.MODAL_APP_NAME == c.MODAL_APP_NAME
     assert hasattr(m, c.HELIUM_CLS_NAME)

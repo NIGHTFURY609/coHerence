@@ -43,4 +43,11 @@ def _parse_synthesis(raw: str) -> HeliumSynthesis:
         payload = json.loads(text)
     except json.JSONDecodeError as exc:
         raise ValueError("Helium model did not return JSON") from exc
-    return HeliumSynthesis.model_validate(payload)
+    synthesis = HeliumSynthesis.model_validate(payload)
+    for field in (synthesis.diagnosis, synthesis.remediation):
+        text = field.strip()
+        if not text or text[-1] not in ".!?":
+            raise ValueError(
+                "Helium diagnosis and remediation must be complete sentences"
+            )
+    return synthesis
