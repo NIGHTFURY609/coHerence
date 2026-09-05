@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Checkout — boron test fixture</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 24px; }
+  /* DEFECT: 24x22px, below the 48x48 minimum touch target */
+  #submit-order { width: 24px; height: 22px; padding: 0; font-size: 9px; }
+  /* DEFECT: adjacent targets with no separation -> tremor misclicks */
+  .pair button { margin: 0; }
+  /* DEFECT: #a8a8a8 on #ffffff is ~2.3:1, fails WCAG AA */
+  .hint { color: #a8a8a8; }
+  /* DEFECT: clickable div, no role, no tabindex -> unreachable by keyboard */
+  #fake-button { background: #2b6cb0; color: #fff; padding: 12px 20px;
+                 display: inline-block; cursor: pointer; }
+  /* DEFECT: fixed 900px block does not reflow at 200% zoom (WCAG 1.4.10) */
+  .wide { width: 900px; white-space: nowrap; }
+  /* CONTROL: correct size and contrast */
+  #continue { min-width: 48px; min-height: 48px; background: #1a365d;
+              color: #fff; border: 0; }
+  #order-confirmed { display: none; }
+</style>
+</head>
+<body>
+<h1>Checkout</h1>
+
+<!-- DEFECT: heading level skips h2 -->
+<h3>Your cart</h3>
+
+<!-- DEFECT: no alt attribute -->
+<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width="120" height="80">
+
+<!-- CONTROL: alt present -->
+<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width="120" height="80" alt="Gift wrap option">
+
+<p class="hint">Delivery estimates are approximate.</p>
+
+<p class="pair">
+  <button id="apply-coupon" type="button">Apply</button><button id="remove-coupon" type="button">Remove</button>
+</p>
+
+<div id="fake-button"
+     onclick="document.getElementById('submit-order').disabled = false">Place order</div>
+
+<div class="wide">
+  <button id="submit-order" type="button" disabled
+          onclick="document.getElementById('order-confirmed').style.display = 'block'">Pay</button>
+</div>
+
+<!-- CONTROL: reachable, correctly sized, no side effect -->
+<button id="continue" type="button">Continue shopping</button>
+
+<p id="order-confirmed">Order confirmed</p>
+</body>
+</html>

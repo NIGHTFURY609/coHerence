@@ -176,6 +176,7 @@ function MiniContour({ className = "" }: { className?: string }) {
 
 function Home() {
   const rootRef = useRef<HTMLDivElement>(null);
+  const lenisRef = useRef<Lenis | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeChapter, setActiveChapter] = useState("top");
   const [scrolled, setScrolled] = useState(false);
@@ -187,7 +188,21 @@ function Home() {
 
   const scrollTo = (id: string) => {
     setMenuOpen(false);
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const target = document.getElementById(id);
+    if (!target) return;
+    if (lenisRef.current) {
+      lenisRef.current.scrollTo(target, { offset: -18, duration: 0.9 });
+      return;
+    }
+    target.scrollIntoView({ behavior: "auto", block: "start" });
+  };
+
+  const handleAnchorClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const anchor = (event.target as HTMLElement).closest<HTMLAnchorElement>("a[href^='#']");
+    const id = anchor?.getAttribute("href")?.slice(1);
+    if (!anchor || !id) return;
+    event.preventDefault();
+    scrollTo(id);
   };
 
   useEffect(() => {
@@ -208,9 +223,16 @@ function Home() {
   }, [cursorX, cursorY]);
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 28);
+    let frame = 0;
+    const handleScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => setScrolled(window.scrollY > 28));
+    };
     window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", handleScroll);
+    };
   }, []);
 
   useLayoutEffect(() => {
@@ -263,15 +285,17 @@ function Home() {
       });
     }, root);
 
-    const lenis = reduceMotion ? null : new Lenis({ duration: 1.05, smoothWheel: true, syncTouch: false });
+    const lenis = reduceMotion ? null : new Lenis({ duration: 0.85, smoothWheel: true, syncTouch: false, anchors: false });
+    lenisRef.current = lenis;
     const raf = (time: number) => {
-      lenis?.raf(time);
+      lenis?.raf(time * 1000);
       ScrollTrigger.update();
     };
     if (lenis) gsap.ticker.add(raf);
     return () => {
       if (lenis) gsap.ticker.remove(raf);
       lenis?.destroy();
+      lenisRef.current = null;
       ctx.revert();
     };
   }, []);
@@ -285,7 +309,7 @@ function Home() {
   );
 
   return (
-    <div ref={rootRef} className="site-shell" onClick={() => cursorVisible && setCursorVisible(true)}>
+    <div ref={rootRef} className="site-shell" onClick={handleAnchorClick}>
       <motion.div
         className="cursor-orb"
         style={{ x: cursorSpringX, y: cursorSpringY, opacity: cursorVisible ? 1 : 0 }}
@@ -302,7 +326,7 @@ function Home() {
           <a href="#impact">Why it matters</a>
         </nav>
         <div className="header-actions">
-          <button type="button" className="header-link desktop-only" onClick={() => scrollTo("explore")}>Explore the signal <ArrowUpRight size={15} /></button>
+          <a className="header-link desktop-only" href="/workshop">Explore the signal <ArrowUpRight size={15} /></a>
           <button type="button" className="menu-toggle" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-controls="mobile-menu" aria-label={menuOpen ? "Close menu" : "Open menu"}>
             {menuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -315,7 +339,7 @@ function Home() {
             <a href="#gap" onClick={() => setMenuOpen(false)}>The gap <ArrowUpRight size={17} /></a>
             <a href="#layers" onClick={() => setMenuOpen(false)}>Two lenses <ArrowUpRight size={17} /></a>
             <a href="#impact" onClick={() => setMenuOpen(false)}>Why it matters <ArrowUpRight size={17} /></a>
-            <a href="#explore" onClick={() => setMenuOpen(false)}>Explore the signal <ArrowUpRight size={17} /></a>
+            <a href="/workshop" onClick={() => setMenuOpen(false)}>Explore the signal <ArrowUpRight size={17} /></a>
           </motion.div>
         )}
       </AnimatePresence>
@@ -348,7 +372,7 @@ function Home() {
             <h1 className="hero-title hero-reveal">The world was built <em>around</em> her.</h1>
             <p className="hero-deck hero-reveal">CoHERence makes the gaps visible—so the next street, service and system can be designed around women’s real lives.</p>
             <div className="hero-actions hero-reveal">
-              <MagneticButton href="#explore" variant="clay">Explore the signal</MagneticButton>
+              <MagneticButton href="/workshop" variant="clay">Explore the signal</MagneticButton>
               <a className="text-link" href="#gap">Why this matters <ArrowDownRight size={16} /></a>
             </div>
           </div>

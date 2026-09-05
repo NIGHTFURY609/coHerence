@@ -1,0 +1,34 @@
+{
+  "nodes": [
+    {
+      "nodeId": "1",
+      "backendDOMNodeId": 101,
+      "role": {"type": "role", "value": "RootWebArea"},
+      "name": {"type": "computedString", "value": "Checkout & Workplace Portal"}
+    },
+    {
+      "nodeId": "2",
+      "backendDOMNodeId": 102,
+      "role": {"type": "role", "value": "heading"},
+      "name": {"type": "computedString", "value": "Checkout Portal"}
+    },
+    {
+      "nodeId": "3",
+      "backendDOMNodeId": 103,
+      "role": {"type": "role", "value": "button"},
+      "name": {"type": "computedString", "value": "OK"}
+    },
+    {
+      "nodeId": "4",
+      "backendDOMNodeId": 104,
+      "role": {"type": "role", "value": "button"},
+      "name": {"type": "computedString", "value": ""}
+    },
+    {
+      "nodeId": "5",
+      "backendDOMNodeId": 105,
+      "role": {"type": "role", "value": "textbox"},
+      "name": {"type": "computedString", "value": ""}
+    }
+  ]
+}

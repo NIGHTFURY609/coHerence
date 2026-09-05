@@ -1,0 +1,19 @@
+{
+  "session_id": "sess_12345_baseline_default",
+  "profile_id": "baseline_default",
+  "url": "https://example.com/checkout",
+  "artifacts": {
+    "html_path": "data/sessions/sess_12345_baseline_default/dom.html",
+    "screenshot_path": "data/sessions/sess_12345_baseline_default/screenshot.png",
+    "a11y_tree_path": "data/sessions/sess_12345_baseline_default/a11y_tree.json",
+    "elements_path": "data/sessions/sess_12345_baseline_default/elements.json"
+  },
+  "telemetry": {
+    "completion_time_ms": 3100,
+    "task_completed": true,
+    "total_clicks": 2,
+    "dead_clicks": 0,
+    "keyboard_nav_steps": 0,
+    "error_count": 0
+  }
+}
