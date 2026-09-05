@@ -40,13 +40,13 @@ This document outlines the architecture, responsibilities, data contracts, and d
 
 ### Backend Dev 1: Browser Ingestion & Synthetic User Agent Engine
 
-* **Owned Directory:** `src/agent/` & `src/browser/`
+* **Owned Directory:** `boron/` (Z=5)
 * **Core Responsibilities:**
   1. **Playwright Execution Harness:**
      - Headless Chromium lifecycle management (navigation, SPA render detection, cookie/modal handling).
      - Single-page and multi-step user journey automation (navigating forms, buttons, links).
   2. **Multi-Modal Data Capture:**
-     - Extract DOM snapshot and computed styles (bounding boxes `x, y, w, h`, font sizes, line heights).
+     - Extract DOM snapshot and computed styles into `elements.json` (bounding boxes `x, y, width, height` — the key names Contract 2 and `hydrogen.BoundingBox` require — font sizes, line heights, colors).
      - Capture full-page and viewport screenshots.
      - Dump the Chromium Accessibility Tree via CDP (`Accessibility.getFullAXTree`).
   3. **User Profile & Constraint Emulation:**
@@ -56,14 +56,14 @@ This document outlines the architecture, responsibilities, data contracts, and d
 * **Isolated Testing:**
   - Test against local static test pages (`tests/fixtures/test_page.html`) without internet access:
     ```bash
-    pytest tests/test_browser_runner.py
+    pytest tests/test_boron.py tests/test_boron_runner.py
     ```
 
 ---
 
 ### Backend Dev 2: Logic, Rules & Disparity Analytics Engine
 
-* **Owned Directory:** `src/analyzers/`, `src/rules/`, & `src/disparity/`
+* **Owned Directory:** `carbon/` (Z=6)
 * **Core Responsibilities:**
   1. **Multi-Modal Analyzers:**
      - **Text Analyzer:** Flesch-Kincaid readability scoring, sentence complexity, and exclusionary/gendered terminology detection.
@@ -88,7 +88,7 @@ This document outlines the architecture, responsibilities, data contracts, and d
 
 ### Backend Dev 3: AI Intelligence, LLM Analyst & API Gateway
 
-* **Owned Directory:** `src/api/`, `src/llm/`, & `src/orchestrator/`
+* **Owned Directory:** `hydrogen/` (Z=1), `helium/` (Z=2), `lithium/` (Z=3), `beryllium/` (Z=4)
 * **Core Responsibilities:**
   1. **LLM Analyst Pipeline:**
      - Design structured JSON prompts that ingest the disparity summary and evidence records.
@@ -140,21 +140,29 @@ To guarantee that everyone can work concurrently without blocking, adhere to the
 ```json
 {
   "session_id": "sess_12345",
-  "profile_id": "motor_impaired_keyboard_only",
+  "profile_id": "motor_impaired",
   "url": "https://example.com/checkout",
   "artifacts": {
     "html_path": "data/sessions/sess_12345/dom.html",
     "screenshot_path": "data/sessions/sess_12345/screenshot.png",
-    "a11y_tree_path": "data/sessions/sess_12345/a11y_tree.json"
+    "a11y_tree_path": "data/sessions/sess_12345/a11y_tree.json",
+    "elements_path": "data/sessions/sess_12345/elements.json"
   },
   "telemetry": {
     "completion_time_ms": 14200,
     "task_completed": false,
     "total_clicks": 8,
     "dead_clicks": 3,
-    "keyboard_nav_steps": 24
-  }
+    "missed_clicks": 4,
+    "keyboard_nav_steps": 24,
+    "error_count": 2,
+    "failed_selectors": ["button#submit-order"]
+  },
+  "capture_policy": "boron-v1"
 }
+
+`session_id` is unique per **(run, profile)** — four profiles sharing one id would
+overwrite each other's artifacts. Convention: `sess_<run>_<profile_id>`.
 ```
 
 ### Contract 2: `EvidenceRecord` & `DisparityMatrix` (Dev 2 $\rightarrow$ Dev 3)
@@ -188,7 +196,7 @@ To guarantee that everyone can work concurrently without blocking, adhere to the
   "report_id": "rep_9876",
   "target_url": "https://example.com/checkout",
   "overall_fairness_score": 62,
-  "profiles_tested": ["baseline_default", "motor_impaired", "low_vision"],
+  "profiles_tested": ["baseline_default", "motor_impaired", "tremor_users", "touch_screen_users", "keyboard_only", "screen_reader_users", "low_vision", "elderly", "cognitive_impaired", "adhd_users", "esl_users"],
   "disparities": [...],
   "findings": [
     {
@@ -216,8 +224,8 @@ To guarantee that everyone can work concurrently without blocking, adhere to the
                                        │
 ┌──────────────────────────────────────▼───────────────────────────────────────┐
 │ PHASE 2: PARALLEL MODULE BUILD (Day 2 - 3)                                   │
-│ • Dev 1: Playwright runner & profile constraint simulator                    │
-│ • Dev 2: Text/Vision/A11y analyzers & disparity calculation engine           │
+│ • Dev 1 (boron/): Playwright runner & profile constraint simulator           │
+│ • Dev 2 (carbon/): Text/Vision/A11y analyzers & disparity engine             │
 │ • Dev 3: LLM prompt chains & FastAPI test orchestration routes               │
 │ • Frontend: Dashboard, radar charts, and interactive report viewer           │
 └──────────────────────────────────────┬───────────────────────────────────────┘
@@ -238,13 +246,13 @@ Every team member can test their own module locally at any time:
 
 ```bash
 # 1. Dev 1 — Test browser automation with local fixtures
-pytest tests/test_browser.py
+pytest tests/test_boron.py tests/test_boron_runner.py
 
 # 2. Dev 2 — Test rule engine and disparity math offline (< 1 sec)
-pytest tests/test_rules.py
+pytest tests/test_rules.py tests/test_rules_and_disparity.py
 
 # 3. Dev 3 — Test LLM prompt parsing and API endpoints
-pytest tests/test_api.py
+pytest tests/test_hydrogen.py tests/test_hydrogen_edges.py
 
 # 4. Frontend — Run dev server with static mock data (no backend needed)
 cd frontend && npm run dev:mock

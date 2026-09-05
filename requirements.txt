@@ -1,2 +1,6 @@
 pydantic>=2.7,<3
 pytest>=8.2,<9
+playwright>=1.44,<2
+beautifulsoup4>=4.12,<5
+pillow>=10.0,<12
+numpy>=1.26,<3

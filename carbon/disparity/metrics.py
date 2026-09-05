@@ -60,7 +60,7 @@ def compute_friction_score(
     click_penalty = min(20.0, float(click_friction))
 
     # 4. Keyboard / Navigation error penalty
-    nav_penalty = min(15.0, (telemetry.keyboard_nav_steps * 0.5) + (telemetry.errors * 5.0))
+    nav_penalty = min(15.0, (telemetry.keyboard_nav_steps * 0.5) + (telemetry.error_count * 5.0))
 
     total = completion_penalty + time_penalty + click_penalty + nav_penalty
     return round(float(min(100.0, max(0.0, total))), 2)

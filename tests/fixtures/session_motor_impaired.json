@@ -1,0 +1,19 @@
+{
+  "session_id": "sess_12345_motor_impaired",
+  "profile_id": "motor_impaired",
+  "url": "https://example.com/checkout",
+  "artifacts": {
+    "html_path": "data/sessions/sess_12345_motor_impaired/dom.html",
+    "screenshot_path": "data/sessions/sess_12345_motor_impaired/screenshot.png",
+    "a11y_tree_path": "data/sessions/sess_12345_motor_impaired/a11y_tree.json",
+    "elements_path": "data/sessions/sess_12345_motor_impaired/elements.json"
+  },
+  "telemetry": {
+    "completion_time_ms": 14200,
+    "task_completed": false,
+    "total_clicks": 8,
+    "dead_clicks": 3,
+    "keyboard_nav_steps": 24,
+    "error_count": 1
+  }
+}
