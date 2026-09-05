@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLocation, Link } from "wouter";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -56,6 +57,7 @@ function MagneticButton({
   variant?: "ink" | "clay" | "light";
   onClick?: () => void;
 }) {
+  const [, setLocation] = useLocation();
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const springX = useSpring(x, { stiffness: 350, damping: 24, mass: 0.25 });
@@ -72,6 +74,14 @@ function MagneticButton({
     y.set(0);
   };
 
+  const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (onClick) onClick();
+    if (href && href.startsWith("/")) {
+      event.preventDefault();
+      setLocation(href);
+    }
+  };
+
   return (
     <motion.a
       href={href ?? "#"}
@@ -79,7 +89,7 @@ function MagneticButton({
       style={{ x: springX, y: springY }}
       onMouseMove={handleMove}
       onMouseLeave={reset}
-      onClick={onClick}
+      onClick={handleClick}
     >
       <span>{children}</span>
       <ArrowUpRight size={16} strokeWidth={2.2} aria-hidden="true" />
@@ -324,9 +334,10 @@ function Home() {
           <a href="#gap">The gap</a>
           <a href="#layers">Two lenses</a>
           <a href="#impact">Why it matters</a>
+          <Link href="/workspace">Workspace</Link>
         </nav>
         <div className="header-actions">
-          <a className="header-link desktop-only" href="/workshop">Explore the signal <ArrowUpRight size={15} /></a>
+          <Link className="header-link desktop-only" href="/workspace">Open Workspace <ArrowUpRight size={15} /></Link>
           <button type="button" className="menu-toggle" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-controls="mobile-menu" aria-label={menuOpen ? "Close menu" : "Open menu"}>
             {menuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -339,7 +350,8 @@ function Home() {
             <a href="#gap" onClick={() => setMenuOpen(false)}>The gap <ArrowUpRight size={17} /></a>
             <a href="#layers" onClick={() => setMenuOpen(false)}>Two lenses <ArrowUpRight size={17} /></a>
             <a href="#impact" onClick={() => setMenuOpen(false)}>Why it matters <ArrowUpRight size={17} /></a>
-            <a href="/workshop" onClick={() => setMenuOpen(false)}>Explore the signal <ArrowUpRight size={17} /></a>
+            <Link href="/workspace" onClick={() => setMenuOpen(false)}>Open Workspace <ArrowUpRight size={17} /></Link>
+            <Link href="/workshop" onClick={() => setMenuOpen(false)}>Explore the signal <ArrowUpRight size={17} /></Link>
           </motion.div>
         )}
       </AnimatePresence>
@@ -372,7 +384,7 @@ function Home() {
             <h1 className="hero-title hero-reveal">The world was built <em>around</em> her.</h1>
             <p className="hero-deck hero-reveal">CoHERence makes the gaps visible—so the next street, service and system can be designed around women’s real lives.</p>
             <div className="hero-actions hero-reveal">
-              <MagneticButton href="/workshop" variant="clay">Explore the signal</MagneticButton>
+              <MagneticButton href="/workspace" variant="clay">Open Workspace</MagneticButton>
               <a className="text-link" href="#gap">Why this matters <ArrowDownRight size={16} /></a>
             </div>
           </div>
