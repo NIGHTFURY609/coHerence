@@ -32,16 +32,21 @@ def current_runtime() -> str:
 
 
 def complete_on_gpu(system: str, user: str) -> str:
+    return invoke_gpu("complete", system, user)
+
+
+def invoke_gpu(method: str, *args: Any) -> Any:
+    """Call a HeliumGPU method. Nitrogen uses this too (same replica)."""
     if current_runtime() == "deployed":
-        return _deployed(system, user)
-    return _ephemeral(system, user)
+        return _deployed(method, *args)
+    return _ephemeral(method, *args)
 
 
-def _deployed(system: str, user: str) -> str:
+def _deployed(method: str, *args: Any) -> Any:
     import modal
 
     cls = modal.Cls.from_name(MODAL_APP_NAME, HELIUM_CLS_NAME)
-    return cls().complete.remote(system, user)
+    return getattr(cls(), method).remote(*args)
 
 
 def _live_gpu_cls() -> Any | None:
@@ -62,18 +67,18 @@ def _live_gpu_cls() -> Any | None:
     return None
 
 
-def _ephemeral(system: str, user: str) -> str:
+def _ephemeral(method: str, *args: Any) -> Any:
     """Cold-start path. Reuses the running app during `modal run`."""
     gpu = _live_gpu_cls()
     if gpu is not None:
-        return gpu().complete.remote(system, user)
+        return getattr(gpu(), method).remote(*args)
 
     import modal
 
     from helium.modal_app import HeliumGPU, app
 
-    def _call() -> str:
-        return HeliumGPU().complete.remote(system, user)
+    def _call() -> Any:
+        return getattr(HeliumGPU(), method).remote(*args)
 
     if app.app_id:
         return _call()

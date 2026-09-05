@@ -10,9 +10,12 @@ KV_CACHE_MEMORY_BYTES = KV_CACHE_GIB * 1024**3
 # only has ~167 blocks; vLLM default max_num_seqs=1024 then fails.
 # Helium is 1–2 jobs. Do not raise KV to satisfy the 1024 default.
 MAX_NUM_SEQS = 8
-# Fallback only if this vLLM build has no kv_cache_memory* kwarg.
-# 0.26 ≈ weights + 8 GiB KV on a 268 GiB card.
+# vLLM still checks free >= util * *total* card, even with kv_cache_memory_bytes.
+# Helium loads first on an empty GPU. 0.26 ≈ weights + 8 GiB KV.
 GPU_MEMORY_UTILIZATION = 0.26
+# Nitrogen loads second (Helium already resident). 0.92 of 268 GiB is 246;
+# only ~206 GiB is free then. 0.65 * 268 ≈ 174 < 206.
+NITROGEN_GPU_MEMORY_UTILIZATION = 0.65
 
 MODAL_APP_NAME = "coherence-helium"
 HELIUM_CLS_NAME = "HeliumGPU"

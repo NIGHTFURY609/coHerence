@@ -261,8 +261,8 @@ def test_runtime_dispatch_ephemeral(monkeypatch):
 
     calls: list[str] = []
     monkeypatch.delenv("HELIUM_RUNTIME", raising=False)
-    monkeypatch.setattr(rt, "_ephemeral", lambda s, u: calls.append("ephemeral") or '{"ok":true}')
-    monkeypatch.setattr(rt, "_deployed", lambda s, u: calls.append("deployed") or '{"ok":false}')
+    monkeypatch.setattr(rt, "_ephemeral", lambda method, *a: calls.append("ephemeral") or '{"ok":true}')
+    monkeypatch.setattr(rt, "_deployed", lambda method, *a: calls.append("deployed") or '{"ok":false}')
     assert rt.complete_on_gpu("sys", "usr") == '{"ok":true}'
     assert calls == ["ephemeral"]
 
@@ -272,8 +272,8 @@ def test_runtime_dispatch_deployed_via_env(monkeypatch):
 
     calls: list[str] = []
     monkeypatch.setenv("HELIUM_RUNTIME", "deployed")
-    monkeypatch.setattr(rt, "_ephemeral", lambda s, u: calls.append("ephemeral") or '{"ok":false}')
-    monkeypatch.setattr(rt, "_deployed", lambda s, u: calls.append("deployed") or '{"ok":true}')
+    monkeypatch.setattr(rt, "_ephemeral", lambda method, *a: calls.append("ephemeral") or '{"ok":false}')
+    monkeypatch.setattr(rt, "_deployed", lambda method, *a: calls.append("deployed") or '{"ok":true}')
     assert rt.current_runtime() == "deployed"
     assert rt.complete_on_gpu("sys", "usr") == '{"ok":true}'
     assert calls == ["deployed"]
@@ -302,3 +302,6 @@ def test_modal_app_constants_match_package():
     assert m.MAX_MODEL_LEN == c.MAX_MODEL_LEN
     assert m.MODAL_APP_NAME == c.MODAL_APP_NAME
     assert hasattr(m, c.HELIUM_CLS_NAME)
+    assert "Qwen3-VL-30B" in m.NITROGEN_MODEL
+    assert m.NITROGEN_GPU_MEMORY_UTILIZATION == c.NITROGEN_GPU_MEMORY_UTILIZATION
+    assert m.NITROGEN_GPU_MEMORY_UTILIZATION < 0.77
