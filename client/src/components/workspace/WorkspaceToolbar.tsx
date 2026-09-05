@@ -23,7 +23,9 @@ import {
   RotateCcw,
   Trash2,
   FileCode,
+  Globe,
 } from "lucide-react";
+import AddWebsiteModal from "./AddWebsiteModal";
 
 const tools: { tool: ToolType; icon: typeof Square; label: string; group: number }[] = [
   { tool: "select", icon: MousePointer2, label: "Select (V)", group: 0 },
@@ -34,7 +36,8 @@ const tools: { tool: ToolType; icon: typeof Square; label: string; group: number
   { tool: "line", icon: Minus, label: "Line (L)", group: 1 },
   { tool: "arrow", icon: MoveRight, label: "Arrow", group: 1 },
   { tool: "text", icon: Type, label: "Text (T)", group: 2 },
-  { tool: "image", icon: ImagePlus, label: "Image", group: 2 },
+  { tool: "image", icon: ImagePlus, label: "Image (Media)", group: 2 },
+  { tool: "website", icon: Globe, label: "Website / URL (W)", group: 2 },
 ];
 
 export default function WorkspaceToolbar() {
@@ -58,6 +61,7 @@ export default function WorkspaceToolbar() {
   } = useWorkspaceStore();
 
   const [exportOpen, setExportOpen] = useState(false);
+  const [isWebsiteModalOpen, setIsWebsiteModalOpen] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
 
@@ -68,7 +72,30 @@ export default function WorkspaceToolbar() {
     setActiveTool(tool);
     if (tool === "image") {
       imageInputRef.current?.click();
+    } else if (tool === "website") {
+      setIsWebsiteModalOpen(true);
     }
+  };
+
+  const handleAddWebsite = (
+    url: string,
+    name?: string,
+    width: number = 680,
+    height: number = 440,
+  ) => {
+    const ptX = -canvas.panX / canvas.zoom + 100;
+    const ptY = -canvas.panY / canvas.zoom + 60;
+    addElement({
+      type: "website",
+      name: name || "Website",
+      url,
+      x: Math.max(40, Math.round(ptX)),
+      y: Math.max(40, Math.round(ptY)),
+      width,
+      height,
+    });
+    setActiveTool("select");
+    toast.success(`Website embedded: ${name || url}`);
   };
 
   const handleImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -130,6 +157,10 @@ export default function WorkspaceToolbar() {
         svgInner += `<text x="${relX}" y="${relY + (el.fontSize || 16)}" font-family="${el.fontFamily || "Manrope"}" font-size="${el.fontSize || 16}" font-weight="${el.fontWeight || 500}" fill="${el.textColor || "#173B36"}">${el.text || ""}</text>\n`;
       } else if (el.type === "line") {
         svgInner += `<line x1="${relX}" y1="${relY}" x2="${relX + (el.x2 ?? el.width)}" y2="${relY + (el.y2 ?? 0)}" stroke="${el.stroke || "#173B36"}" stroke-width="${el.strokeWidth || 2}" />\n`;
+      } else if (el.type === "website") {
+        svgInner += `<rect x="${relX}" y="${relY}" width="${el.width}" height="${el.height}" rx="${el.cornerRadius || 8}" fill="#1e1e1e" stroke="rgba(255,255,255,0.2)" stroke-width="1" />\n`;
+        svgInner += `<text x="${relX + 16}" y="${relY + 24}" font-family="Manrope" font-size="12" font-weight="700" fill="#f0f0f0">${el.name || "Website"}</text>\n`;
+        svgInner += `<text x="${relX + 16}" y="${relY + 44}" font-family="Manrope" font-size="10" fill="#888888">${el.url || ""}</text>\n`;
       }
     }
 
@@ -382,6 +413,11 @@ export default function WorkspaceToolbar() {
           )}
         </div>
       </div>
+      <AddWebsiteModal
+        isOpen={isWebsiteModalOpen}
+        onClose={() => setIsWebsiteModalOpen(false)}
+        onAdd={handleAddWebsite}
+      />
     </header>
   );
 }

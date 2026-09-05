@@ -49,6 +49,10 @@ export function useWorkspaceKeyboard() {
             e.preventDefault();
             s.setActiveTool("frame");
             return;
+          case "w":
+            e.preventDefault();
+            s.setActiveTool("website");
+            return;
           case "delete":
           case "backspace":
             e.preventDefault();
@@ -84,10 +88,41 @@ export function useWorkspaceKeyboard() {
             e.preventDefault();
             s.cutElements();
             return;
-          case "v":
+          case "v": {
             e.preventDefault();
-            s.pasteElements();
+            if (s.clipboard.length > 0) {
+              s.pasteElements();
+            } else if (navigator.clipboard?.readText) {
+              navigator.clipboard
+                .readText()
+                .then((text) => {
+                  const trimmed = text.trim();
+                  if (
+                    trimmed.startsWith("http://") ||
+                    trimmed.startsWith("https://")
+                  ) {
+                    let name = "Website";
+                    try {
+                      name = new URL(trimmed).hostname;
+                    } catch {}
+                    const ptX = -s.canvas.panX / s.canvas.zoom + 120;
+                    const ptY = -s.canvas.panY / s.canvas.zoom + 80;
+                    s.addElement({
+                      type: "website",
+                      name,
+                      url: trimmed,
+                      x: Math.round(ptX),
+                      y: Math.round(ptY),
+                      width: 680,
+                      height: 440,
+                    });
+                    s.setActiveTool("select");
+                  }
+                })
+                .catch(() => {});
+            }
             return;
+          }
           case "d":
             e.preventDefault();
             if (s.selectedIds.length > 0) s.duplicateElements(s.selectedIds);

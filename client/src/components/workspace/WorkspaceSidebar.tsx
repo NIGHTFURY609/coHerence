@@ -16,6 +16,7 @@ import {
   Lock,
   Unlock,
   Plus,
+  Globe,
 } from "lucide-react";
 
 const typeIcons: Record<ElementType, typeof Square> = {
@@ -25,6 +26,7 @@ const typeIcons: Record<ElementType, typeof Square> = {
   image: ImagePlus,
   frame: SquareDashed,
   line: Minus,
+  website: Globe,
 };
 
 export default function WorkspaceSidebar() {

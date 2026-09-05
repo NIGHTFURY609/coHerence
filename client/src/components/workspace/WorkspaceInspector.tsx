@@ -25,6 +25,7 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  Globe,
 } from "lucide-react";
 
 const typeIcons: Record<ElementType, typeof Square> = {
@@ -34,6 +35,7 @@ const typeIcons: Record<ElementType, typeof Square> = {
   image: ImagePlus,
   frame: SquareDashed,
   line: Minus,
+  website: Globe,
 };
 
 function NumberField({

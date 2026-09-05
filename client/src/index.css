@@ -656,3 +656,1014 @@ img { display: block; max-width: 100%; }
   .ws-toolbar-brand small { display: none; }
 }
 
+/* Workspace Right Side Tab (Task Progress, Outputs, Context) */
+.ws-sidetab {
+  width: 270px;
+  min-width: 270px;
+  max-width: 270px;
+  background: #1e1e1e;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  user-select: none;
+  font-family: inherit;
+}
+
+.ws-sidetab-section {
+  padding: 18px 20px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ws-sidetab-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ws-sidetab-header {
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ws-sidetab-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ws-sidetab-title {
+  color: #f0f0f0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.ws-sidetab-chevron {
+  color: rgba(255, 255, 255, 0.5);
+  transition: transform 0.18s ease;
+}
+
+.ws-sidetab-chevron.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.ws-sidetab-add-btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ws-sidetab-add-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ws-sidetab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ws-sidetab-desc {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #888888;
+  margin: 0;
+}
+
+/* Stepper */
+.ws-sidetab-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 4px 0 2px;
+}
+
+.ws-sidetab-step-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.6);
+  flex-shrink: 0;
+  background: transparent;
+}
+
+.ws-sidetab-step-line {
+  width: 18px;
+  height: 1.5px;
+  background: rgba(255, 255, 255, 0.22);
+  flex-shrink: 0;
+}
+
+/* Outputs Box */
+.ws-sidetab-output-card {
+  width: 76px;
+  height: 52px;
+  border-radius: 8px;
+  background: #252525;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.ws-sidetab-output-card:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: #2b2b2b;
+}
+
+/* Context Illustration */
+.ws-sidetab-context-illustration {
+  padding: 2px 0;
+}
+
+@media (max-width: 900px) {
+  .ws-sidetab { display: none; }
+}
+
+/* ======================================================================= */
+/* Website / URL Embed Element on Canvas                                   */
+/* ======================================================================= */
+
+.ws-website-frame {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #1e1e1e;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.45);
+}
+
+.ws-website-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  background: #252525;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.ws-website-traffic-lights {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ws-traffic-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.ws-traffic-dot.close {
+  background: #ed6a5e;
+}
+
+.ws-traffic-dot.min {
+  background: #f4bf4f;
+}
+
+.ws-traffic-dot.max {
+  background: #61c554;
+}
+
+.ws-website-url-bar {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 6px;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+
+.ws-website-url-bar:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.ws-website-favicon {
+  width: 13px;
+  height: 13px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.ws-website-globe-icon {
+  color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+}
+
+.ws-website-url-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  flex: 1;
+  cursor: text;
+}
+
+.ws-website-url-text {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ws-platform-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.ws-platform-badge.netflix {
+  background: rgba(229, 9, 20, 0.25);
+  color: #E50914;
+  border: 1px solid rgba(229, 9, 20, 0.4);
+}
+
+.ws-platform-badge.youtube {
+  background: rgba(255, 0, 0, 0.2);
+  color: #ff4e45;
+}
+
+.ws-platform-badge.spotify {
+  background: rgba(29, 185, 84, 0.2);
+  color: #1ed760;
+}
+
+.ws-platform-badge.figma {
+  background: rgba(162, 89, 255, 0.2);
+  color: #a259ff;
+}
+
+.ws-website-url-form {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 4px;
+}
+
+.ws-website-url-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font: inherit;
+  font-size: 11px;
+  outline: none;
+  padding: 0;
+}
+
+.ws-website-url-submit-btn {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: #d85c45;
+  color: #ffffff;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.ws-website-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.ws-website-action-btn {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.ws-website-action-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.ws-website-action-btn.is-active {
+  background: rgba(216, 92, 69, 0.35);
+  color: #d85c45;
+}
+
+.ws-website-action-btn.is-proxy-on {
+  color: #77a88d;
+}
+
+.ws-website-action-btn.is-proxy-on:hover {
+  background: rgba(119, 168, 141, 0.2);
+  color: #92caa9;
+}
+
+.ws-website-action-btn.is-proxy-off {
+  color: #d85c45;
+}
+
+.ws-website-viewport {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  height: calc(100% - 36px);
+  background: #161616;
+  overflow: hidden;
+}
+
+.ws-website-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #ffffff;
+}
+
+.ws-website-drag-overlay {
+  position: absolute;
+  inset: 0;
+  cursor: move;
+  z-index: 10;
+}
+
+.ws-website-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 12px;
+}
+
+/* ======================================================================= */
+/* Smart Card View (Netflix, Media, Protected Sites)                       */
+/* ======================================================================= */
+
+.ws-website-smart-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #141414;
+  color: #f7f1e7;
+  font-family: inherit;
+}
+
+.ws-website-smart-card.netflix {
+  background: radial-gradient(circle at 50% 20%, rgba(229, 9, 20, 0.25) 0%, #121212 75%);
+}
+
+.ws-smart-card-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  padding: 22px 24px;
+  box-sizing: border-box;
+}
+
+.ws-smart-card-badge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ws-netflix-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ws-netflix-n-logo {
+  font-weight: 900;
+  font-size: 20px;
+  color: #E50914;
+  font-family: "Impact", "Arial Black", sans-serif;
+  text-shadow: 0 2px 8px rgba(229, 9, 20, 0.5);
+  line-height: 1;
+}
+
+.ws-netflix-label {
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: #E50914;
+}
+
+.ws-generic-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #e0e0e0;
+}
+
+.ws-smart-card-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+}
+
+.ws-smart-card-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.ws-smart-card-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  margin: auto 0;
+  padding: 10px 14px;
+}
+
+.ws-smart-card-media-icon {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 4px;
+}
+
+.ws-smart-card-media-icon.netflix {
+  background: rgba(229, 9, 20, 0.15);
+  border-color: rgba(229, 9, 20, 0.4);
+  color: #E50914;
+  box-shadow: 0 0 24px rgba(229, 9, 20, 0.3);
+}
+
+.ws-smart-card-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+  max-width: 90%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ws-smart-card-url {
+  margin: 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  max-width: 80%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ws-smart-card-desc {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.65);
+  max-width: 440px;
+}
+
+.ws-smart-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ws-smart-card-primary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 22px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  background: #d85c45;
+  color: #ffffff;
+}
+
+.ws-smart-card-primary-btn.netflix {
+  background: #E50914;
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(229, 9, 20, 0.4);
+}
+
+.ws-smart-card-primary-btn.netflix:hover {
+  background: #f40612;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(229, 9, 20, 0.6);
+}
+
+.ws-smart-card-secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ws-smart-card-secondary-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+/* Floating helper for DRM or frame blocked sites in live mode */
+.ws-website-drm-helper {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: rgba(18, 18, 18, 0.94);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(229, 9, 20, 0.4);
+  font-size: 11px;
+  color: #e0e0e0;
+  z-index: 25;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+.ws-website-drm-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 4px;
+  background: #E50914;
+  color: #ffffff;
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 10.5px;
+  transition: background 0.15s ease;
+}
+
+.ws-website-drm-btn:hover {
+  background: #f40612;
+}
+
+.ws-website-drm-toggle {
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.ws-website-drm-toggle:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+/* ======================================================================= */
+/* Add Website Modal Dialog                                                */
+/* ======================================================================= */
+
+.ws-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  z-index: 9999;
+  padding: 16px;
+  animation: wsFadeIn 0.18s ease;
+}
+
+@keyframes wsFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.ws-modal-card {
+  width: 100%;
+  max-width: 480px;
+  background: #222222;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #f7f1e7;
+  font-family: inherit;
+}
+
+.ws-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ws-modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ws-modal-icon-badge {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(216, 92, 69, 0.18);
+  color: #d85c45;
+  border: 1px solid rgba(216, 92, 69, 0.3);
+}
+
+.ws-modal-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.ws-modal-subtitle {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #888888;
+}
+
+.ws-modal-close-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ws-modal-close-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ws-modal-body {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ws-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ws-modal-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.ws-modal-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ws-modal-input-icon {
+  position: absolute;
+  left: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  pointer-events: none;
+}
+
+.ws-modal-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px 0 36px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: #181818;
+  color: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.ws-modal-input.plain {
+  padding-left: 12px;
+}
+
+.ws-modal-input:focus {
+  border-color: #d85c45;
+  background: #151515;
+}
+
+.ws-modal-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ws-modal-preset-chip {
+  padding: 4px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.7);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.ws-modal-preset-chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.ws-modal-preset-chip.is-active {
+  border-color: #d85c45;
+  background: rgba(216, 92, 69, 0.15);
+  color: #ffffff;
+}
+
+.ws-modal-size-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.ws-modal-size-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #1a1a1a;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.ws-modal-size-card:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: #242424;
+  color: #ffffff;
+}
+
+.ws-modal-size-card.is-selected {
+  border-color: #d85c45;
+  background: rgba(216, 92, 69, 0.12);
+  color: #ffffff;
+}
+
+.ws-modal-size-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.ws-modal-size-name {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ws-modal-size-dim {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.ws-modal-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 11px;
+  color: #888888;
+  line-height: 1.45;
+}
+
+.ws-modal-hint-icon {
+  color: #d85c45;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.ws-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.ws-modal-btn {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ws-modal-btn-cancel {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.ws-modal-btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+.ws-modal-btn-primary {
+  border: none;
+  background: #d85c45;
+  color: #ffffff;
+}
+
+.ws-modal-btn-primary:hover:not(:disabled) {
+  background: #e36a53;
+}
+
+.ws-modal-btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* SideTab Context Menu & Reference List */
+.ws-sidetab-menu {
+  position: absolute;
+  right: 20px;
+  top: 48px;
+  z-index: 100;
+  background: #252525;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 175px;
+  animation: wsFadeIn 0.15s ease;
+}
+
+.ws-sidetab-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: #f0f0f0;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.12s ease;
+}
+
+.ws-sidetab-menu-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.ws-sidetab-refs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.ws-sidetab-ref-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 11.5px;
+  color: #e0e0e0;
+  transition: all 0.15s ease;
+}
+
+.ws-sidetab-ref-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.ws-sidetab-ref-link {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+}
+
+.ws-sidetab-ref-icon {
+  color: #d85c45;
+  flex-shrink: 0;
+}
+
+

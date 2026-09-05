@@ -203,7 +203,82 @@ function vitePluginStorageProxy(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector(), vitePluginStorageProxy()];
+function vitePluginWebProxy(): Plugin {
+  return {
+    name: "manus-web-proxy",
+    configureServer(server: ViteDevServer) {
+      server.middlewares.use("/api/proxy-site", async (req, res) => {
+        try {
+          const parsed = new URL(req.url || "", "http://localhost:3000");
+          const target = parsed.searchParams.get("url");
+          if (!target) {
+            res.writeHead(400, { "Content-Type": "text/plain" });
+            res.end("Missing url parameter");
+            return;
+          }
+
+          let formattedTarget = target.trim();
+          if (!formattedTarget.startsWith("http://") && !formattedTarget.startsWith("https://")) {
+            formattedTarget = "https://" + formattedTarget;
+          }
+
+          const response = await fetch(formattedTarget, {
+            headers: {
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+              Accept:
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+              "Accept-Language": "en-US,en;q=0.9",
+            },
+            redirect: "follow",
+          });
+
+          const contentType = response.headers.get("content-type") || "text/html";
+          if (contentType.includes("text/html")) {
+            let html = await response.text();
+            const baseUrl = new URL(response.url || formattedTarget);
+            const baseTag = `<base href="${baseUrl.origin}${baseUrl.pathname.replace(/\/[^/]*$/, "/")}" />`;
+            if (html.includes("<head>")) {
+              html = html.replace("<head>", `<head>${baseTag}`);
+            } else if (html.includes("<HEAD>")) {
+              html = html.replace("<HEAD>", `<HEAD>${baseTag}`);
+            } else {
+              html = baseTag + html;
+            }
+
+            res.writeHead(200, {
+              "Content-Type": "text/html; charset=utf-8",
+              "Access-Control-Allow-Origin": "*",
+            });
+            res.end(html);
+          } else {
+            const buffer = Buffer.from(await response.arrayBuffer());
+            res.writeHead(response.status, {
+              "Content-Type": contentType,
+              "Access-Control-Allow-Origin": "*",
+            });
+            res.end(buffer);
+          }
+        } catch (err: any) {
+          res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
+          res.end(
+            `<!DOCTYPE html><html><body style="font-family:sans-serif;padding:24px;background:#1e1e1e;color:#f0f0f0;"><h3>Website Preview</h3><p>Unable to load: ${err.message}</p></body></html>`,
+          );
+        }
+      });
+    },
+  };
+}
+
+const plugins = [
+  react(),
+  tailwindcss(),
+  jsxLocPlugin(),
+  vitePluginManusRuntime(),
+  vitePluginManusDebugCollector(),
+  vitePluginStorageProxy(),
+  vitePluginWebProxy(),
+];
 
 export default defineConfig({
   plugins,

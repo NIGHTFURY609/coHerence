@@ -1,8 +1,7 @@
 import { useState, useCallback } from "react";
 import WorkspaceCanvas from "@/components/workspace/WorkspaceCanvas";
 import WorkspaceToolbar from "@/components/workspace/WorkspaceToolbar";
-import WorkspaceSidebar from "@/components/workspace/WorkspaceSidebar";
-import WorkspaceInspector from "@/components/workspace/WorkspaceInspector";
+import WorkspaceSideTab from "@/components/workspace/WorkspaceSideTab";
 import WorkspaceStatusbar from "@/components/workspace/WorkspaceStatusbar";
 import WorkspaceContextMenu from "@/components/workspace/WorkspaceContextMenu";
 import { useWorkspaceKeyboard } from "@/hooks/useWorkspaceKeyboard";
@@ -26,9 +25,8 @@ export default function Workspace() {
     <div className="ws-shell" onContextMenu={handleContextMenu}>
       <WorkspaceToolbar />
       <div className="ws-body">
-        <WorkspaceSidebar />
         <WorkspaceCanvas />
-        <WorkspaceInspector />
+        <WorkspaceSideTab />
       </div>
       <WorkspaceStatusbar />
       {contextMenu && (

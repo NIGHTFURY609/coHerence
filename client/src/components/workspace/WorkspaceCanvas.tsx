@@ -91,7 +91,7 @@ export default function WorkspaceCanvas() {
         return;
       }
 
-      const shapeTools: string[] = ["rectangle", "ellipse", "frame", "line", "arrow", "image"];
+      const shapeTools: string[] = ["rectangle", "ellipse", "frame", "line", "arrow", "image", "website"];
       if (shapeTools.includes(activeTool) || activeTool === "text") {
         const pt = screenToCanvas(e.clientX, e.clientY);
         setDrawStart(pt);
@@ -160,15 +160,24 @@ export default function WorkspaceCanvas() {
         const isArrow = activeTool === "arrow";
         const isText = activeTool === "text";
         const isImage = activeTool === "image";
-        const type: ElementType = isArrow ? "line" : isText ? "text" : isImage ? "image" : (activeTool as ElementType);
+        const isWebsite = activeTool === "website";
+        const type: ElementType = isArrow
+          ? "line"
+          : isText
+            ? "text"
+            : isImage
+              ? "image"
+              : isWebsite
+                ? "website"
+                : (activeTool as ElementType);
 
-        if (w > 5 || h > 5 || isText || isImage) {
+        if (w > 5 || h > 5 || isText || isImage || isWebsite) {
           const props: Partial<WorkspaceElement> & { type: ElementType } = {
             type,
             x,
             y,
-            width: Math.max(w, isText ? 160 : isImage ? 240 : 20),
-            height: Math.max(h, isText ? 36 : isImage ? 160 : 20),
+            width: Math.max(w, isText ? 160 : isImage ? 240 : isWebsite ? 680 : 20),
+            height: Math.max(h, isText ? 36 : isImage ? 160 : isWebsite ? 440 : 20),
           };
           if (type === "line") {
             props.x2 = drawCurrent.x - x;
@@ -212,6 +221,35 @@ export default function WorkspaceCanvas() {
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
+      // 1. Check for URL drop
+      const droppedUrl =
+        e.dataTransfer.getData("text/uri-list") ||
+        e.dataTransfer.getData("text/plain");
+      if (
+        droppedUrl &&
+        (droppedUrl.startsWith("http://") ||
+          droppedUrl.startsWith("https://") ||
+          droppedUrl.startsWith("/"))
+      ) {
+        const pt = screenToCanvas(e.clientX, e.clientY);
+        let domain = "Website";
+        try {
+          domain = new URL(droppedUrl, window.location.origin).hostname;
+        } catch {}
+        addElement({
+          type: "website",
+          name: domain,
+          url: droppedUrl,
+          x: Math.round(pt.x),
+          y: Math.round(pt.y),
+          width: 680,
+          height: 440,
+        });
+        setActiveTool("select");
+        return;
+      }
+
+      // 2. Check for image file drop
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         const file = e.dataTransfer.files[0];
         if (file.type.startsWith("image/")) {
@@ -240,7 +278,7 @@ export default function WorkspaceCanvas() {
   const cursorClass =
     activeTool === "hand" || spaceHeld.current
       ? "ws-canvas-viewport--hand"
-      : ["rectangle", "ellipse", "frame", "line", "arrow", "text", "image"].includes(activeTool)
+      : ["rectangle", "ellipse", "frame", "line", "arrow", "text", "image", "website"].includes(activeTool)
         ? "ws-canvas-viewport--crosshair"
         : "";
 
