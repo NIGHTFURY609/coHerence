@@ -8,7 +8,7 @@ from __future__ import annotations
 import math
 from enum import Enum
 from typing import Dict, List, Optional, Any
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import AliasChoices, BaseModel, Field, ConfigDict
 
 
 class Severity(str, Enum):
@@ -77,6 +77,7 @@ class ArtifactPaths(BaseModel):
     html_path: Optional[str] = Field(None, description="Path to captured DOM HTML snapshot")
     screenshot_path: Optional[str] = Field(None, description="Path to viewport or full-page screenshot PNG")
     a11y_tree_path: Optional[str] = Field(None, description="Path to dumped Chromium accessibility tree JSON")
+    elements_path: Optional[str] = Field(None, description="Path to captured element geometry and computed styles JSON")
 
 
 class TelemetryData(BaseModel):
@@ -89,7 +90,12 @@ class TelemetryData(BaseModel):
     dead_clicks: int = Field(default=0, description="Clicks on non-interactive regions or missed hits")
     missed_clicks: int = Field(default=0, description="Clicks near targets that failed target hit")
     keyboard_nav_steps: int = Field(default=0, description="Number of Tab/Enter/Arrow navigation events")
-    errors: int = Field(default=0, description="Count of interaction or validation errors encountered")
+    error_count: int = Field(
+        default=0,
+        validation_alias=AliasChoices("error_count", "errors"),
+        description="Count of interaction or validation errors encountered. Named to match hydrogen.METRIC_KIND",
+    )
+    failed_selectors: List[str] = Field(default_factory=list, description="Selectors the profile could not operate (Dev 1 join key)")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional custom metrics")
 
 
@@ -102,6 +108,7 @@ class RawSessionArtifacts(BaseModel):
     url: str = Field(..., description="Target webpage URL evaluated")
     artifacts: ArtifactPaths = Field(..., description="File paths to recorded artifacts")
     telemetry: TelemetryData = Field(..., description="Telemetry captured during session run")
+    capture_policy: Optional[str] = Field(None, description="Dev 1 emulation policy that produced this telemetry")
 
 
 # ==============================================================================

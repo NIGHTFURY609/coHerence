@@ -54,7 +54,7 @@ The broader question: **does a design assumption systematically disadvantage a p
 
 ## Getting started
 
-Python 3.10+. The fairness engine lives in `hydrogen/`.
+Python 3.10+. The fairness engine lives in `hydrogen/`; the browser capture harness lives in `boron/`.
 
 Fish:
 
@@ -80,6 +80,14 @@ Any shell, no activate:
 .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m pytest
 ```
+
+`boron/` drives a real headless browser, so install Chromium once after the pip step:
+
+```
+python -m playwright install chromium
+```
+
+Without it the `tests/test_boron_runner.py` tests are skipped; the rest of the suite still runs.
 
 ## License
 
