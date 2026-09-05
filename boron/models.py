@@ -8,6 +8,15 @@ from pydantic import BaseModel, ConfigDict, Field
 # emulation produced a number, mirroring hydrogen's scoring_policy.
 CAPTURE_POLICY = "boron-v1"
 
+# A VL-driven path is not bit-reproducible (vLLM batching, page variance), so it
+# must not claim the scripted stamp. One string covers both the live loop and a
+# plan_once replay -- in both the path came from the model.
+CAPTURE_POLICY_VL = "boron-vl-v1"
+# A human drove a headed browser; all four artifacts are real.
+CAPTURE_POLICY_MANUAL = "boron-manual-v1"
+# Loose PNGs with no browser: screenshot only, no geometry for Dev 2 to score.
+CAPTURE_POLICY_MANUAL_PNG = "boron-manual-png-v1"
+
 
 class SessionArtifacts(BaseModel):
     model_config = ConfigDict(extra="ignore")

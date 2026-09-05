@@ -56,8 +56,10 @@ This document outlines the architecture, responsibilities, data contracts, and d
 * **Isolated Testing:**
   - Test against local static test pages (`tests/fixtures/test_page.html`) without internet access:
     ```bash
-    pytest tests/test_boron.py tests/test_boron_runner.py
+    pytest tests/test_boron.py tests/test_boron_runner.py tests/test_boron_vl.py
     ```
+  - `test_boron_vl.py` covers vision-driven navigation with an injected mock client,
+    so no GPU is needed. See `boron/sub-arch.md` §3a.
 
 ---
 
@@ -246,7 +248,7 @@ Every team member can test their own module locally at any time:
 
 ```bash
 # 1. Dev 1 — Test browser automation with local fixtures
-pytest tests/test_boron.py tests/test_boron_runner.py
+pytest tests/test_boron.py tests/test_boron_runner.py tests/test_boron_vl.py
 
 # 2. Dev 2 — Test rule engine and disparity math offline (< 1 sec)
 pytest tests/test_rules.py tests/test_rules_and_disparity.py

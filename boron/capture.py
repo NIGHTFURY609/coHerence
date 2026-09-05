@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
 
@@ -116,3 +117,76 @@ def _write_json(path: Path, payload) -> None:
 
 def _posix(path: Path) -> str:
     return path.as_posix()
+
+
+def viewport_screenshot_b64(page) -> tuple[str, int, int]:
+    """Base64 PNG of the viewport, with the pixel size the model will see.
+
+    Navigation needs the viewport, not the full page: the model answers in the
+    coordinate space of the image it was given, and page.mouse works in viewport
+    CSS px. Zoomed profiles need no correction -- document.body.style.zoom scales
+    content inside the same viewport, so the shot is already what that user sees.
+    """
+    png = page.screenshot(full_page=False)
+    return base64.b64encode(png).decode("ascii"), *_png_size(png)
+
+
+def _png_size(png: bytes) -> tuple[int, int]:
+    """Width and height from the IHDR chunk.
+
+    Read from the image rather than from `page.viewport_size`: the two diverge
+    as soon as device_scale_factor is not 1, and the model is told these numbers
+    and answers in them. Guessing wrong would silently halve every coordinate.
+    """
+    if len(png) < 24 or png[1:4] != b"PNG":
+        raise ValueError("screenshot is not a PNG")
+    return (
+        int.from_bytes(png[16:20], "big"),
+        int.from_bytes(png[20:24], "big"),
+    )
+
+
+ELEMENT_AT_POINT_SCRIPT = (
+    "([x, y]) => { " + _CSS_PATH_JS + " const el = document.elementFromPoint(x, y);"
+    " return el ? cssPath(el) : null; }"
+)
+
+
+def element_at_point(page, x: float, y: float) -> str | None:
+    """elements.json selector under a point, or None.
+
+    A coordinate click has no selector of its own, so this is what keeps
+    Telemetry.failed_selectors in the form carbon's join expects.
+    """
+    try:
+        return page.evaluate(ELEMENT_AT_POINT_SCRIPT, [x, y])
+    except Exception:
+        return None
+
+
+def focusable_ax_text(page, limit: int = 60) -> str:
+    """Focusable a11y nodes as numbered lines, for a user who cannot see the page."""
+    cdp = page.context.new_cdp_session(page)
+    try:
+        tree = cdp.send("Accessibility.getFullAXTree")
+    finally:
+        cdp.detach()
+
+    lines = []
+    for node in tree.get("nodes", []):
+        if node.get("ignored"):
+            continue
+        role = (node.get("role") or {}).get("value") or ""
+        name = ((node.get("name") or {}).get("value") or "").strip()
+        if not name or role in _UNNAMED_ROLES:
+            continue
+        lines.append(f"{len(lines) + 1}. {role} '{name}'")
+        if len(lines) >= limit:
+            break
+    return "\n".join(lines)
+
+
+# Structural roles carry no interaction affordance; listing them buries the rest.
+_UNNAMED_ROLES = frozenset(
+    {"RootWebArea", "generic", "none", "presentation", "StaticText", "InlineTextBox"}
+)
