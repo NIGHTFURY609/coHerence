@@ -1,4 +1,4 @@
-"""LLM client protocol. Tests use MockLLMClient. Live Modal is later."""
+"""LLM client protocol. Tests use MockLLMClient. Live GPU is ModalLLMClient."""
 
 from __future__ import annotations
 
@@ -33,3 +33,17 @@ class MockLLMClient:
         self.last_system = system
         self.last_user = user
         return self.synthesis.model_dump_json()
+
+
+class ModalLLMClient:
+    """Calls the B300 worker. Cold vs warm is helium.runtime, not this class."""
+
+    def complete(self, system: str, user: str) -> str:
+        from helium.runtime import complete_on_gpu
+
+        return complete_on_gpu(system, user)
+
+
+def get_client() -> LLMClient:
+    """Live client. Tests pass MockLLMClient into diagnose() instead."""
+    return ModalLLMClient()

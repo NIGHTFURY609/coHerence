@@ -1,82 +1,38 @@
-from helium import REPORT_MODEL, diagnose
-from helium.client import MockLLMClient
+import pytest
+
+from helium import HELIUM_RUNTIME, REPORT_MODEL, diagnose, get_client
+from helium.client import MockLLMClient, ModalLLMClient
+from helium.example import example_bundle, example_report
+from hydrogen.engine import evaluate
 from helium.prompt import SYSTEM_PROMPT, user_prompt
-from hydrogen.models import (
-    AttributionStatus,
-    FairnessBreakdown,
-    FindingDraft,
-    HydrogenReport,
-    ScoreStatus,
-    Severity,
-)
+from hydrogen.models import ScoreStatus
 
 
-def _report() -> HydrogenReport:
-    return HydrogenReport(
-        report_id="rep_example",
-        target_url="https://example.com/checkout",
-        overall_fairness_score=72,
-        score_status=ScoreStatus.VALID,
-        scoring_policy="hydrogen-v1",
-        profiles_tested=["baseline_default", "motor_impaired"],
-        disparities=[],
-        findings=[
-            FindingDraft(
-                id="find_1",
-                title="instruction is ambiguous",
-                severity=Severity.WARNING,
-                affected_profiles=[],
-                attribution_status=AttributionStatus.UNRESOLVED,
-                rule_id="TEXT_AMBIGUOUS_INSTRUCTION",
-                element_selector="#submit-help",
-            ),
-            FindingDraft(
-                id="find_2",
-                title="primary action has low visual prominence",
-                severity=Severity.CRITICAL,
-                affected_profiles=[],
-                attribution_status=AttributionStatus.UNRESOLVED,
-                rule_id="VISION_LOW_PROMINENCE",
-                element_selector="button#submit-order",
-            ),
-            FindingDraft(
-                id="find_3",
-                title="keyboard navigation requires 14 steps",
-                severity=Severity.WARNING,
-                affected_profiles=[],
-                attribution_status=AttributionStatus.UNRESOLVED,
-                rule_id="A11Y_KEYBOARD_STEPS",
-                element_selector="body",
-            ),
-            FindingDraft(
-                id="find_4",
-                title="constrained profile made 3 additional errors",
-                severity=Severity.CRITICAL,
-                affected_profiles=["motor_impaired"],
-                attribution_status=AttributionStatus.UNRESOLVED,
-                rule_id="INTERACTION_EXTRA_ERRORS",
-                element_selector="",
-            ),
-        ],
-        breakdown=FairnessBreakdown(
-            score_status=ScoreStatus.VALID,
-            scored=True,
-            overall_fairness_score=72,
-            outcome_equity=72.0,
-            bottleneck_metric="task_completion_rate",
-            bottleneck_group="motor_impaired",
-            bottleneck_abs_gap=0.28,
-            scoring_policy="hydrogen-v1",
-        ),
-        diagnosis="",
-        remediation="",
-        analyst="hydrogen",
-    )
+def _report():
+    return example_report()
 
 
 def test_report_model_is_qwen_27b_text():
     assert "27B" in REPORT_MODEL
     assert "VL" not in REPORT_MODEL
+
+
+def test_runtime_default_is_ephemeral():
+    assert HELIUM_RUNTIME == "ephemeral"
+
+
+def test_hydrogen_then_helium_locks_score():
+    scored = evaluate(example_bundle(), "rep_example")
+    assert scored.analyst == "hydrogen"
+    assert scored.diagnosis == ""
+    assert scored.overall_fairness_score == 72
+    assert scored.breakdown.bottleneck_abs_gap == 0.28
+    out = diagnose(scored, MockLLMClient())
+    assert out.analyst == "helium"
+    assert out.overall_fairness_score == 72
+    assert out.score_status is ScoreStatus.VALID
+    assert scored.analyst == "hydrogen"
+    assert scored.diagnosis == ""
 
 
 def test_diagnose_fills_synthesis_and_locks_score():
@@ -113,6 +69,73 @@ def test_user_prompt_builder_sets_completion_gap_pp():
     assert '"completion_gap_pp": 28' in text
 
 
+def test_empty_model_output_raises():
+    class Empty:
+        def complete(self, system: str, user: str):
+            return None
+
+    try:
+        diagnose(_report(), Empty())
+    except ValueError as exc:
+        assert "JSON" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def helium_init_deps() -> set[str]:
+    import ast
+    from pathlib import Path
+
+    tree = ast.parse(Path("helium/__init__.py").read_text())
+    names: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom) and node.module:
+            names.add(node.module)
+        elif isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+    return names
+
+
+def test_helium_init_source_avoids_hydrogen():
+    deps = helium_init_deps()
+    assert "hydrogen" not in deps
+    assert "hydrogen.models" not in deps
+    assert "helium.engine" not in deps
+    assert "helium.prompt" not in deps
+    assert "helium.example" not in deps
+
+
+def test_ephemeral_reuses_live_modal_run(monkeypatch):
+    import sys
+    import types
+
+    import helium.runtime as rt
+
+    class FakeApp:
+        name = "coherence-helium"
+        app_id = "ap-live"
+
+    class FakeComplete:
+        def remote(self, system: str, user: str) -> str:
+            return '{"diagnosis":"d","remediation":"r"}'
+
+    class FakeGPU:
+        def __init__(self) -> None:
+            self.complete = FakeComplete()
+
+    live = types.ModuleType("helium_live_modal_run")
+    live.app = FakeApp()
+    live.HeliumGPU = FakeGPU
+    monkeypatch.setitem(sys.modules, "helium_live_modal_run", live)
+
+    def boom(*_a, **_k):
+        raise AssertionError("must not import/start a second Modal app")
+
+    monkeypatch.setattr(rt, "_deployed", boom)
+    monkeypatch.delenv("HELIUM_RUNTIME", raising=False)
+    assert rt.complete_on_gpu("sys", "usr") == '{"diagnosis":"d","remediation":"r"}'
+
+
 def test_bad_json_raises():
     class Bad:
         def complete(self, system: str, user: str) -> str:
@@ -124,3 +147,94 @@ def test_bad_json_raises():
         assert "JSON" in str(exc)
     else:
         raise AssertionError("expected ValueError")
+
+
+def test_missing_remediation_is_rejected():
+    class Partial:
+        def complete(self, system: str, user: str) -> str:
+            return '{"diagnosis": "A 28 pp completion gap exists."}'
+
+    try:
+        diagnose(_report(), Partial())
+    except Exception:
+        return
+    raise AssertionError("expected rejection when remediation is missing")
+
+
+def test_system_prompt_forbids_causal_verbs():
+    from helium.prompt import SYSTEM_PROMPT as prompt
+
+    assert "driven by" in prompt.lower()
+    assert "do not say the ui facts caused" in prompt.lower() or "do not say one caused" in prompt.lower()
+
+
+def test_think_tags_are_stripped():
+    class Thinky:
+        def complete(self, system: str, user: str) -> str:
+            return (
+                "<think>scratch</think>"
+                '{"diagnosis": "A 28 pp completion gap was observed.",'
+                ' "remediation": "Clarify the instruction."}'
+            )
+
+    out = diagnose(_report(), Thinky())
+    assert "28" in out.diagnosis
+    assert "instruction" in out.remediation.lower()
+    assert "<think>" not in out.diagnosis
+
+
+def test_diagnose_defaults_to_get_client(monkeypatch):
+    fake = MockLLMClient()
+    monkeypatch.setattr("helium.engine.get_client", lambda: fake)
+    out = diagnose(_report())
+    assert out.analyst == "helium"
+    assert fake.last_user
+
+
+def test_get_client_is_modal():
+    assert isinstance(get_client(), ModalLLMClient)
+
+
+def test_runtime_dispatch_ephemeral(monkeypatch):
+    import helium.runtime as rt
+
+    calls: list[str] = []
+    monkeypatch.delenv("HELIUM_RUNTIME", raising=False)
+    monkeypatch.setattr(rt, "_ephemeral", lambda s, u: calls.append("ephemeral") or '{"ok":true}')
+    monkeypatch.setattr(rt, "_deployed", lambda s, u: calls.append("deployed") or '{"ok":false}')
+    assert rt.complete_on_gpu("sys", "usr") == '{"ok":true}'
+    assert calls == ["ephemeral"]
+
+
+def test_runtime_dispatch_deployed_via_env(monkeypatch):
+    import helium.runtime as rt
+
+    calls: list[str] = []
+    monkeypatch.setenv("HELIUM_RUNTIME", "deployed")
+    monkeypatch.setattr(rt, "_ephemeral", lambda s, u: calls.append("ephemeral") or '{"ok":false}')
+    monkeypatch.setattr(rt, "_deployed", lambda s, u: calls.append("deployed") or '{"ok":true}')
+    assert rt.current_runtime() == "deployed"
+    assert rt.complete_on_gpu("sys", "usr") == '{"ok":true}'
+    assert calls == ["deployed"]
+
+
+def test_modal_client_does_not_import_modal_until_complete(monkeypatch):
+    client = ModalLLMClient()
+    monkeypatch.setattr(
+        "helium.runtime.complete_on_gpu",
+        lambda system, user: '{"diagnosis":"d","remediation":"r"}',
+    )
+    assert client.complete("sys", "usr") == '{"diagnosis":"d","remediation":"r"}'
+
+
+def test_modal_app_constants_match_package():
+    pytest.importorskip("modal")
+    import helium.modal_app as m
+    from helium import constants as c
+
+    assert m.REPORT_MODEL == c.REPORT_MODEL
+    assert m.GPU == c.GPU
+    assert m.GPU_MEMORY_UTILIZATION == c.GPU_MEMORY_UTILIZATION
+    assert m.MAX_MODEL_LEN == c.MAX_MODEL_LEN
+    assert m.MODAL_APP_NAME == c.MODAL_APP_NAME
+    assert hasattr(m, c.HELIUM_CLS_NAME)

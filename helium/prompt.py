@@ -12,7 +12,7 @@ Rules:
 - Use only the JSON evidence you are given. Do not invent WCAG, users, or metrics.
 - Consider all evidence streams that are present. Prioritize what is relevant to the strongest findings and the observed disparity. Do not mention every row. Do not dump a list of every click or INFO item.
 - Write about constraints and interface evidence, never personas or stereotypes.
-- If a finding's attribution_status is UNRESOLVED, you may state the gap and the UI fact side by side. Do not say one caused the other.
+- If a finding's attribution_status is UNRESOLVED, state the gap and the UI facts side by side. Do not say the UI facts caused the gap. Forbidden phrasing: "driven by", "caused by", "due to", "disproportionately impact".
 - Do not change or invent the fairness score. You may quote a gap that is in the JSON (for example 28 pp).
 - Short paragraphs. No chain-of-thought. No preamble.
 

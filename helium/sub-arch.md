@@ -1,6 +1,6 @@
 # Helium — Report LLM (Modal, B300)
 
-**Status:** v1 implemented (`helium.diagnose`, mock client in tests). Live B300 deploy is `helium/modal_app.py`.
+**Status:** v1 done. `helium.diagnose` + mock tests + live B300 (`helium/modal_app.py`). Default runtime is **ephemeral** (cold start). Switch to warm later via `HELIUM_RUNTIME=deployed` after `modal deploy` — `diagnose()` does not change.
 
 Helium is CoHERence module Z=2. It writes **one diagnosis and one remediation** from the **whole** Hydrogen report.
 
@@ -170,14 +170,27 @@ Catalog UI may lock **H100**. Helium uses a **custom app**: `@app.cls(gpu="B300"
 
 | | helium-v1 |
 |--|-----------|
-| Report model | `helium.REPORT_MODEL` = **`Qwen/Qwen3.6-27B`** (or the official Instruct/FP8 id of that 27B). **Text only. No vision.** |
+| Report model | `helium.REPORT_MODEL` = **`Qwen/Qwen3.6-27B`**. **Text only. No vision.** |
+| Live client | `ModalLLMClient` / `get_client()`. Tests pass `MockLLMClient`. |
+| Runtime | `helium.runtime.complete_on_gpu`. Default **`ephemeral`** (cold start). |
 | Other models on the same B300 | Allowed for **other teammates** (not Helium calls). One replica; do not start four B300 functions. |
-| KV | 8k–16k, 1–2 in-flight jobs. A few GB, not 100 GB. |
+| KV | `gpu_memory_utilization=0.42`, `max_model_len=8192`. |
 | Structured out | JSON schema `HeliumSynthesis` |
 
-Swapping the checkpoint later is still `helium.REPORT_MODEL` only — it does not change `diagnose` or `HeliumSynthesis`. v1 does **not** take screenshots.
+Same `modal run` process, two machines in it:
 
-Hydrogen stays on CPU.
+- **CPU (local):** `hydrogen.evaluate` then `helium.diagnose` (prompt + parse). Hydrogen never loads on the GPU.
+- **GPU (one B300):** `HeliumGPU.complete`. Other team models load on **this same class / replica** (`gpu_memory_utilization=0.42` leaves room). Do **not** add another `@app.cls(gpu="B300")`.
+
+`diagnose(report)` builds the prompt locally, then `client.complete(system, user)`. The GPU worker is a dumb completer. During `modal run`, reuse the live app — do not start a second one.
+
+To drop cold start later (do not rewrite `diagnose`):
+
+1. `modal deploy helium/modal_app.py`
+2. set `HELIUM_RUNTIME=deployed` (constant or env)
+3. optionally `min_containers=1` on `HeliumGPU`
+
+Swapping the checkpoint is still `helium.REPORT_MODEL` only. v1 does **not** take screenshots. Hydrogen stays on CPU.
 
 ---
 
@@ -204,6 +217,7 @@ Hydrogen stays on CPU.
 
 | Later | How |
 |-------|-----|
+| Warm GPU (no cold start) | `HELIUM_RUNTIME=deployed` + `modal deploy`; optional `min_containers=1` |
 | Per-finding `diagnosis` / `remediation_diff` | Extra keys on `HeliumSynthesis` |
 | Screenshots in Helium | **Not in v1.** Would need a multimodal `REPORT_MODEL`. |
 | Swap report weights | Change `helium.REPORT_MODEL` only |
@@ -221,16 +235,20 @@ helium/
   constants.py
   models.py
   prompt.py
+  example.py
   client.py
+  runtime.py
   engine.py
   modal_app.py
 ```
 
-After approval, expose:
+Public:
 
 ```
 helium.diagnose
 helium.REPORT_MODEL
+helium.HELIUM_RUNTIME
+helium.get_client
 ```
 
-Hydrogen must leave `diagnosis = ""` and `remediation = ""` on `HydrogenReport` (add those two fields if missing). Tests: `tests/test_helium.py` with a fake client.
+Tests: `tests/test_helium.py` with `MockLLMClient`. No live B300 in pytest.
