@@ -2,7 +2,8 @@
 from __future__ import annotations
 import json
 import os
-from typing import Dict, List, Any, Optional
+from collections import defaultdict
+from typing import Dict, List, Any, Optional, Sequence
 
 from carbon.schemas.contracts import (
     EvidenceItem,
@@ -42,10 +43,32 @@ RULE_AFFECTED_PROFILES_MAP: Dict[str, List[str]] = {
     "POSITIVE_TABINDEX_DISCOURAGED": ["keyboard_only"],
     "AX_TREE_UNNAMED_INTERACTIVE_NODE": ["screen_reader_users"],
     "HIGH_READING_DIFFICULTY": ["cognitive_impaired", "esl_users"],
-    "EXCLUSIONARY_LANGUAGE_DETECTED": ["marginalized_demographics"],
+    # EXCLUSIONARY_LANGUAGE_DETECTED is a content defect detectable from the DOM
+    # with no simulated user. There is no input-channel constraint to emulate for
+    # it, and inventing a "marginalized" browsing constraint is the stereotype
+    # modelling docs/idea-brief.md rejects. Left unmapped so it ships
+    # affected_profiles=[] / UNRESOLVED, which hydrogen handles correctly.
     "HIGH_VISUAL_CLUTTER": ["cognitive_impaired", "low_vision", "adhd_users"],
     "INSUFFICIENT_WHITESPACE": ["low_vision", "cognitive_impaired"],
 }
+
+
+# WCAG 2.1: large text is >=24px, or >=18.66px when bold.
+LARGE_TEXT_PX = 24.0
+LARGE_BOLD_PX = 18.66
+BOLD_WEIGHT = 700
+
+
+def _is_large_text(element: Dict[str, Any]) -> bool:
+    try:
+        size = float(str(element.get("font_size", "0")).replace("px", ""))
+    except ValueError:
+        size = 0.0
+    try:
+        weight = int(element.get("font_weight", 400))
+    except (TypeError, ValueError):
+        weight = BOLD_WEIGHT if element.get("font_weight") == "bold" else 400
+    return size >= LARGE_TEXT_PX or (size >= LARGE_BOLD_PX and weight >= BOLD_WEIGHT)
 
 
 class RuleEngine:
@@ -133,6 +156,11 @@ class RuleEngine:
         
         Reads artifact files (DOM HTML, screenshot, AXTree) from disk if present.
         """
+        if interactive_elements is None or contrast_elements is None:
+            derived = self._elements_from_session(session, base_dir)
+            interactive_elements = interactive_elements or derived["interactive_elements"]
+            contrast_elements = contrast_elements or derived["contrast_elements"]
+
         context: Dict[str, Any] = {
             "session_id": session.session_id,
             "profile_id": session.profile_id,
@@ -168,9 +196,87 @@ class RuleEngine:
         for item in evidence:
             if not item.profile_id and session.profile_id:
                 item.profile_id = session.profile_id
-            if session.profile_id and session.profile_id not in item.affected_profiles:
-                item.affected_profiles.append(session.profile_id)
+        # affected_profiles is deliberately NOT filled from session.profile_id.
+        # A static DOM defect belongs to the page, not to whichever profile was
+        # running when it was observed; see hydrogen/sub-arch.md 6.4.
         return evidence
+
+    @staticmethod
+    def _elements_from_session(session: RawSessionArtifacts, base_dir: str = "") -> Dict[str, List[Dict[str, Any]]]:
+        """Derive geometry rule inputs from the Dev 1 elements.json artifact."""
+        empty: Dict[str, List[Dict[str, Any]]] = {"interactive_elements": [], "contrast_elements": []}
+        path = session.artifacts.elements_path
+        if not path:
+            return empty
+        p = os.path.join(base_dir, path) if base_dir else path
+        if not os.path.exists(p):
+            return empty
+        with open(p, "r", encoding="utf-8", errors="ignore") as f:
+            try:
+                elements = json.load(f)
+            except Exception:
+                return empty
+
+        visible = [e for e in elements if e.get("visible")]
+        return {
+            "interactive_elements": [
+                {
+                    "selector": e.get("element_selector"),
+                    "bounding_box": e.get("bounding_box"),
+                    "tag": e.get("tag"),
+                }
+                for e in visible
+                if e.get("interactive")
+            ],
+            "contrast_elements": [
+                {
+                    "selector": e.get("element_selector"),
+                    "fg_color": e.get("color"),
+                    "bg_color": e.get("background_color"),
+                    "is_large_text": _is_large_text(e),
+                    "bounding_box": e.get("bounding_box"),
+                }
+                for e in visible
+                if e.get("text")
+            ],
+        }
+
+    @staticmethod
+    def attribute_from_failures(
+        evidence_items: List[EvidenceItem],
+        sessions: Sequence[RawSessionArtifacts],
+    ) -> List[EvidenceItem]:
+        """Sharpen attribution with what profiles actually failed on.
+
+        hydrogen/sub-arch.md 6.4 wants a measured evidence -> profile join.
+        Dev 1 reports telemetry.failed_selectors per session -- the only record
+        of which element a profile could not operate.
+
+        An observed failure is INTERSECTED with the rule taxonomy, never
+        substituted for it. A profile failing to click an element is evidence
+        for interaction rules on that element, not for perception rules: a
+        keyboard user who cannot reach a button tells us nothing about its
+        contrast. Where the intersection is empty the failure concerns a
+        different aspect of the element, so the taxonomy stands.
+        """
+        by_selector: Dict[str, List[str]] = defaultdict(list)
+        for session in sessions:
+            for selector in getattr(session.telemetry, "failed_selectors", []) or []:
+                if session.profile_id not in by_selector[selector]:
+                    by_selector[selector].append(session.profile_id)
+
+        for item in evidence_items:
+            observed = by_selector.get(item.element_selector)
+            if not observed:
+                continue
+            taxonomy = RULE_AFFECTED_PROFILES_MAP.get(item.rule_id)
+            if taxonomy is None:
+                item.affected_profiles = list(observed)
+                continue
+            confirmed = [p for p in taxonomy if p in observed]
+            if confirmed:
+                item.affected_profiles = confirmed
+        return evidence_items
 
     @staticmethod
     def deduplicate_and_sort(evidence_items: List[EvidenceItem]) -> List[EvidenceItem]:

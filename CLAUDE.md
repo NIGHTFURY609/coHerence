@@ -65,3 +65,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
 dont use anthropic sdk
+
+docs\arch.md has the architecture , docs\idea-brief.md has the idea brief , DEV.md has the individual development sepration 
+
+strictly keep the sepration alive as said in dev.md
