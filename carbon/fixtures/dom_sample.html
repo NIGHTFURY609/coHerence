@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Checkout & Workplace Portal</title>
+    <style>
+        .low-contrast-text {
+            color: #999999;
+            background-color: #ffffff;
+            font-size: 13px;
+        }
+        .small-touch-btn {
+            width: 24px;
+            height: 22px;
+            padding: 2px;
+        }
+        .adjacent-btn {
+            width: 30px;
+            height: 25px;
+            margin-left: 2px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Checkout Portal</h1>
+    <!-- Skipped heading level from h1 to h3 directly -->
+    <h3>Order Summary & Team Allocations</h3>
+
+    <p class="low-contrast-text">
+        Please review your transaction details before proceeding to confirmation.
+    </p>
+
+    <!-- Biased / exclusionary terminology -->
+    <p id="team-info">
+        Our dedicated manpower spent hundreds of man hours ensuring this system works for all of mankind.
+        Hey you guys, remember to consult the chairman before deploying changes to the whitelist.
+    </p>
+
+    <!-- High reading difficulty paragraph (dense polysyllabic sentences) -->
+    <p id="legal-terms">
+        Notwithstanding the aforementioned indemnification stipulations, an inextricably convoluted 
+        multidisciplinary jurisprudence dictates that the organizational counterparty shall substantiate 
+        hermeneutic interoperability through cryptographic verification methodologies beforehand.
+    </p>
+
+    <!-- Missing alt text on non-decorative image -->
+    <img id="product-hero" src="product.jpg">
+
+    <!-- Suspicious alt text -->
+    <img id="company-logo" src="logo.png" alt="logo.png">
+
+    <!-- Unlabelled form input -->
+    <div>
+        <span>Enter Promo Code:</span>
+        <input type="text" id="promo-code">
+    </div>
+
+    <!-- Interactive elements with small touch target size (< 48x48px and < 24x24px) -->
+    <div style="position: relative;">
+        <button id="submit-order" class="small-touch-btn">OK</button>
+        <button id="cancel-order" class="adjacent-btn">X</button>
+    </div>
+
+    <!-- Empty button without accessible name -->
+    <button id="mystery-icon-btn"></button>
+
+    <!-- Inaccessible clickable div -->
+    <div id="fake-btn" onclick="alert('clicked')">Click Here</div>
+
+    <!-- Positive tabindex -->
+    <input type="text" id="priority-input" tabindex="5" placeholder="Priority">
+</body>
+</html>
