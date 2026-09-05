@@ -244,9 +244,10 @@ For each disparity row, keep it only if **all** of:
 
 1. `metric` is a non-empty string in `METRIC_KIND`
 2. `baseline_value` and `constrained_value` are finite numbers
-3. Kind-specific bounds:
-   - **rate** (`task_completion_rate`, `task_failure_rate`, `abandonment_rate`, `error_rate`): `0 ≤ value ≤ 1` for **both** baseline and constrained
-   - **time / count** (ms, clicks, steps, `error_count`): `value ≥ 0` for both
+3. Kind-specific bounds (both baseline and constrained):
+   - **rate** (`task_completion_rate`, `task_failure_rate`, `abandonment_rate`, `error_rate`): `0 ≤ value ≤ 1`
+   - **0–100 composite** (`composite_friction_score`): `0 ≤ value ≤ 100`
+   - **time / count** (ms, clicks, steps, `error_count`): `value ≥ 0`
 4. `disparity_ratio` is present, finite, and `> 0`
 5. `disadvantaged_group` is a non-empty string
 
@@ -296,18 +297,19 @@ higher_better: abs_gap = max(baseline - constrained, 0)   # completion
 lower_better:  abs_gap = max(constrained - baseline, 0)   # time, errors, clicks, steps
 ```
 
-| Metric | Kind | `GAP_REF` (policy: gap → equity 0) | `METRIC_WEIGHT` |
-|--------|------|-----------------------------------:|----------------:|
-| `task_completion_rate` | higher_better | `1.0` (100 pp) | `1.00` |
-| `task_failure_rate` | lower_better | `1.0` | `1.00` |
-| `abandonment_rate` | lower_better | `1.0` | `1.00` |
-| `task_completion_time` | lower_better | `30000` ms | `0.50` |
-| `completion_time_ms` | lower_better | `30000` ms | `0.50` |
-| `error_rate` | lower_better | `1.0` | `0.50` |
-| `error_count` | lower_better | `10` extra errors | `0.50` |
-| `dead_clicks` | lower_better | `10` extra | `0.25` |
-| `total_clicks` | lower_better | `20` extra | `0.25` |
-| `keyboard_nav_steps` | lower_better | `20` extra | `0.25` |
+| Metric | Units | Direction | `GAP_REF` (max severity) | `METRIC_WEIGHT` |
+|--------|-------|-----------|--------------------------:|----------------:|
+| `task_completion_rate` | 0.0–1.0 rate | higher_better | 1.0 (100 pp gap → equity 0) | 1.00 |
+| `task_failure_rate` | 0.0–1.0 rate | lower_better | 1.0 (100 pp extra failure) | 1.00 |
+| `abandonment_rate` | 0.0–1.0 rate | lower_better | 1.0 (100 pp extra abandonment) | 1.00 |
+| `completion_time_ms` | ms, unbounded ≥0 | lower_better | 30000 (30 s extra wait) | 0.50 |
+| `task_completion_time` | ms, unbounded ≥0 | lower_better | 30000 (30 s extra wait) | 0.50 |
+| `error_rate` | 0.0–1.0 rate | lower_better | 1.0 (100 pp extra errors) | 0.50 |
+| `error_count` | count, unbounded ≥0 | lower_better | 10 extra errors | 0.50 |
+| `dead_clicks` | count, unbounded ≥0 | lower_better | 10 extra dead clicks | 0.25 |
+| `total_clicks` | count, unbounded ≥0 | lower_better | 20 extra clicks | 0.25 |
+| `keyboard_nav_steps` | count, unbounded ≥0 | lower_better | 20 extra keyboard steps | 0.25 |
+| `composite_friction_score` | 0.0–100.0 normalized | lower_better | 50.0 point gap | 0.50 |
 
 ```
 unit_gap          = min(abs_gap / GAP_REF[metric], 1)
@@ -322,6 +324,7 @@ Worked rates (weight 1.00):
 | Case A (90% vs 45%) | 0.45 | **55** | large inclusion gap |
 | Case B (10% vs 5%) | 0.05 | **95** | small extra gap; baseline already poor |
 | Checkout (100% vs 25%) | 0.75 | **25** | 75 pp lost |
+| Friction 20 vs 70 | 50 | **0** then ×0.50 weight → **50** | 50-point gap is max severity for friction |
 
 ### 6.2.1 One row per family (no alias / overlap double-count)
 
@@ -337,8 +340,11 @@ If Dev 2 sends both `task_completion_time` and `completion_time_ms`, that is one
 | `dead_clicks` | `dead_clicks` |
 | `total_clicks` | `total_clicks` |
 | `keyboard` | `keyboard_nav_steps` |
+| `friction` | `composite_friction_score` |
 
-`dead_clicks`, `total_clicks`, and `keyboard_nav_steps` are **not** aliases of each other.
+`dead_clicks`, `total_clicks`, and `keyboard_nav_steps` are **not** aliases of each other **unless** that group also has `composite_friction_score`. Then the composite **replaces** those three (they go to `collapsed_metrics`) so interaction pain is not counted twice. Time and error rows stay; they are not part of the composite.
+
+`composite_friction_score` units are **0–100**, lower-better. `GAP_REF = 50` (a 50-point extra friction gap → equity 0). Weight **0.50** (Dev 2 table said “(Composite)” not a number; 0.50 is the time/error band). Out of `0–100` → skip, not clamp.
 
 ### 6.2.2 `baseline_poor` is a policy flag
 
@@ -498,7 +504,7 @@ Helium fills the two empty strings. It must **not** change `overall_fairness_sco
 |-------------|----|-----|-------|
 | `helium.diagnose` | `report: HydrogenReport` | `HydrogenReport` | writes `diagnosis`, `remediation_diff`; `analyst = "helium"`; **must not** change score, status, or policy |
 | `lithium.create_report` | HTTP body → `EvidenceBundle` | Contract 3 JSON | calls `hydrogen.evaluate`, then optionally `helium.diagnose` |
-| `beryllium.run_pipeline` | job id + Contract 2 path | `HydrogenReport` | Dev 1 → Dev 2 → `hydrogen.evaluate` |
+| `beryllium.run_pipeline` | job id, Contract 2 path, **`n_trials`** | `HydrogenReport` | Dev 1 runs each profile `n_trials` times → Dev 2 aggregates → `hydrogen.evaluate`. Hydrogen never sees `n_trials`. |
 
 ---
 
@@ -563,6 +569,7 @@ Not in `hydrogen-v1`. Do **not** implement these until the policy string bumps (
 | Helium / Lithium / Beryllium | `helium.diagnose`, `lithium.create_report`, `beryllium.run_pipeline` | Reserved in §8. Must not recompute the score. |
 | Weighted average instead of `min` | New policy string only | Default stays worst-group `min`. |
 | Sample size / statistical confidence | New fields on `Disparity` + policy | 1/1 vs 0/1 can look like 1000/1000 vs 500/1000. Fine for v1/hackathon. |
+| Consumer-chosen trial count | `n_trials: int` on the job (Lithium request / `beryllium.run_pipeline`) | Dev 1 repeats each profile N times; Dev 2 does `rate = successes / N`. Default N=1 until then. Hydrogen does **not** take N. |
 | Mix relative severity back into the integer | **Do not** for v1 | 10 s→20 s vs 100 s→110 s are the same gap; ratio stays on the report for Helium. |
 
 Changing any scoring rule without bumping `hydrogen.SCORING_POLICY` is a bug.

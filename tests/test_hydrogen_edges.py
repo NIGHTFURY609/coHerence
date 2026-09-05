@@ -317,3 +317,45 @@ def test_findings_never_copy_disadvantaged_group():
     report = evaluate(parse_contract2(payload), "rep_no_join")
     assert report.findings[0].affected_profiles == []
     assert "motor_impaired" not in report.findings[0].affected_profiles
+
+
+def test_composite_friction_gap_ref_50_weight_50():
+    # baseline 20, constrained 70 → abs_gap 50 / GAP_REF 50 → equity 0 → weight 0.50 → 50
+    breakdown = score_fairness(
+        parse_contract2(
+            _payload(disparities=[_row("composite_friction_score", 20.0, 70.0, ratio=3.5)])
+        )
+    )
+    assert breakdown.scored is True
+    assert breakdown.bottleneck_metric == "composite_friction_score"
+    assert breakdown.bottleneck_abs_gap == 50.0
+    assert breakdown.overall_fairness_score == 50
+
+
+def test_composite_friction_replaces_click_and_keyboard_rows():
+    breakdown = score_fairness(
+        parse_contract2(
+            _payload(
+                disparities=[
+                    _row("composite_friction_score", 10.0, 20.0),
+                    _row("dead_clicks", 0, 10),
+                    _row("total_clicks", 8, 28),
+                    _row("keyboard_nav_steps", 4, 24),
+                    _row("error_count", 1, 2),
+                ]
+            )
+        )
+    )
+    assert breakdown.bottleneck_metric == "composite_friction_score"
+    assert "dead_clicks" in breakdown.collapsed_metrics
+    assert "total_clicks" in breakdown.collapsed_metrics
+    assert "keyboard_nav_steps" in breakdown.collapsed_metrics
+    assert "error_count" not in breakdown.collapsed_metrics
+
+
+def test_composite_friction_out_of_range_skipped():
+    breakdown = score_fairness(
+        parse_contract2(_payload(disparities=[_row("composite_friction_score", 10.0, 140.0)]))
+    )
+    assert breakdown.scored is False
+    assert "composite_friction_score" in breakdown.skipped_metrics

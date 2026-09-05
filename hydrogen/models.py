@@ -103,4 +103,6 @@ class HydrogenReport(BaseModel):
     disparities: list[Disparity]
     findings: list[FindingDraft]
     breakdown: FairnessBreakdown
+    diagnosis: str = ""
+    remediation: str = ""
     analyst: str = "hydrogen"
