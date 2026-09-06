@@ -275,25 +275,51 @@ def _record_failure(counters, selector: str, page=None) -> None:
         counters["failed_selectors"].append(selector)
 
 
+def _mutations(page):
+    """The DOM-change counter, or None when the execution context is gone."""
+    try:
+        return page.evaluate("() => window.__boron.mutations")
+    except Exception:
+        return None
+
+
+def _changed(page, before, before_url) -> bool:
+    """Did the press do anything? A navigation is the loudest possible yes.
+
+    `window.__boron.mutations` lives in the document, so a press that leaves the
+    page destroys the context it is read from and starts the next one at zero.
+    Reading that as "no change" calls the one press that worked a dead click,
+    and the navigator then tells the model that element does nothing -- which
+    ends the run on any site made of more than one page.
+    """
+    try:
+        if page.url != before_url:
+            return True
+    except Exception:
+        return True
+    after = _mutations(page)
+    return after is None or before is None or after != before
+
+
 def _activate(page, profile, selector, counters, rng) -> None:
     """Reach the target and act on it. Retries a slip the way a person would."""
     if profile.keyboard_only:
         if profile.ax_tree_only and not _has_accessible_name(page, selector):
             raise RuntimeError("no accessible name exposed")
-        before = page.evaluate("() => window.__boron.mutations")
+        before, before_url = _mutations(page), page.url
         counters["keyboard_nav_steps"] += _tab_to(page, selector)
         page.keyboard.press("Enter")
         page.wait_for_timeout(50)
-        if page.evaluate("() => window.__boron.mutations") == before:
+        if not _changed(page, before, before_url):
             counters["dead_clicks"] += 1
         return
 
     for _ in range(profile.max_attempts):
-        before = page.evaluate("() => window.__boron.mutations")
+        before, before_url = _mutations(page), page.url
         _press(page, profile, selector, rng, counters)
         counters["total_clicks"] += 1
         page.wait_for_timeout(50)
-        if page.evaluate("() => window.__boron.mutations") != before:
+        if _changed(page, before, before_url):
             return
         counters["dead_clicks"] += 1
         _record_failure(counters, selector, page)
@@ -347,12 +373,12 @@ def _seeded_press_point(rng):
 
     def press(page, profile, x, y, counters, aimed):
         for _ in range(profile.max_attempts):
-            before = page.evaluate("() => window.__boron.mutations")
+            before, before_url = _mutations(page), page.url
             _press_point(page, profile, x, y, rng, counters, aimed=aimed)
             if counters is not None:
                 counters["total_clicks"] += 1
             page.wait_for_timeout(50)
-            if page.evaluate("() => window.__boron.mutations") != before:
+            if _changed(page, before, before_url):
                 return
             if counters is not None:
                 counters["dead_clicks"] += 1

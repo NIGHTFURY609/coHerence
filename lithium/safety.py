@@ -19,6 +19,11 @@ _BLOCKED_IPS = {
 _HOST_ALIASES = {
     "wiki": "https://en.wikipedia.org",
     "wikipedia": "https://en.wikipedia.org",
+    # gmail.com itself serves the logged-out marketing page; the product under
+    # test is the mail host, which is where a signed-out visitor lands anyway.
+    "gmail": "https://mail.google.com",
+    "gmail.com": "https://mail.google.com",
+    "www.gmail.com": "https://mail.google.com",
     "github": "https://github.com",
     "youtube": "https://www.youtube.com",
     "netflix": "https://www.netflix.com/browse",

@@ -51,6 +51,9 @@ const jsonHeaders = { "Content-Type": "application/json" };
 const HOST_ALIASES: Record<string, string> = {
   wiki: "https://en.wikipedia.org",
   wikipedia: "https://en.wikipedia.org",
+  gmail: "https://mail.google.com",
+  "gmail.com": "https://mail.google.com",
+  "www.gmail.com": "https://mail.google.com",
   github: "https://github.com",
   youtube: "https://www.youtube.com",
   netflix: "https://www.netflix.com/browse",
@@ -98,6 +101,64 @@ export async function startJob(body: StartJobBody): Promise<JobSnapshot> {
   return response.json();
 }
 
+export type StartScreenshotJobBody = {
+  url: string;
+  images: string[];
+  diagnose?: boolean;
+};
+
+export async function startScreenshotJob(
+  body: StartScreenshotJobBody,
+): Promise<JobSnapshot> {
+  const response = await fetch("/api/jobs/screenshots", {
+    method: "POST",
+    headers: jsonHeaders,
+    body: JSON.stringify({ ...body, url: canonicalizeSiteUrl(body.url) }),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(errorDetail(detail, response.status));
+  }
+  return response.json();
+}
+
+export function readImagesAsDataUrls(files: File[]): Promise<string[]> {
+  return Promise.all(
+    files.map(
+      (file) =>
+        new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onerror = () => reject(new Error(`could not read ${file.name}`));
+          reader.onload = () => resolve(String(reader.result));
+          reader.readAsDataURL(file);
+        }),
+    ),
+  );
+}
+
+/** A success selector has to be able to be false before the task and true after. */
+export function isUsableSuccessSelector(raw: string): {
+  ok: boolean;
+  reason: string;
+} {
+  const selector = (raw || "").trim();
+  if (!selector) {
+    return { ok: false, reason: "A success selector is required." };
+  }
+  if (/^(body|html|:root|\*)$/i.test(selector)) {
+    return {
+      ok: false,
+      reason: `"${selector}" is visible before the task starts, so every profile would be scored as complete.`,
+    };
+  }
+  try {
+    document.createDocumentFragment().querySelector(selector);
+  } catch {
+    return { ok: false, reason: "That is not a valid CSS selector." };
+  }
+  return { ok: true, reason: "" };
+}
+
 export async function getHealth(): Promise<boolean> {
   try {
     const response = await fetch("/api/health");
@@ -132,10 +193,13 @@ export function previewUrl(jobId: string, bust: number): string {
 export const DEMO_CHECKOUT_PATH = "/demo/checkout.html";
 export const DEMO_STEPS = ["#fake-button", "#submit-order"];
 export const DEMO_SUCCESS = "#order-confirmed";
-export const DEFAULT_GOAL =
-  "Use the main content of this page as a typical visitor";
 export const DEMO_GOAL = "Place the order";
-export const DEFAULT_SUCCESS = "#coherence-task-complete";
+// Placeholders, never defaults. A goal that names no end state makes the model
+// click the middle of the page, and a selector that is not on the site can
+// never become visible, so `task_completed` would be false for every profile
+// however well navigation went. Both fields are the caller's to fill in.
+export const GOAL_PLACEHOLDER = "Add the blue mug to the basket and pay";
+export const SUCCESS_PLACEHOLDER = "#order-confirmed";
 export const DEMO_PROFILES = [
   "baseline_default",
   "motor_impaired",

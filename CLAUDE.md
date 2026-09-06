@@ -68,4 +68,4 @@ dont use anthropic sdk
 
 docs\arch.md has the architecture , docs\idea-brief.md has the idea brief , DEV.md has the individual development sepration 
 
-strictly keep the sepration alive as said in dev.md
+use the docs\arch.md dont create or modify stuff that isnt there

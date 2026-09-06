@@ -37,6 +37,10 @@ MAX_UNVERIFIED_DONE = 2
 # Observed live on Wikipedia: Qwen3-VL clicked the same dead heading 12 times
 # after being told it did nothing. Two identical misses is enough.
 MAX_IDENTICAL_DEAD = 2
+# An action that navigates leaves no page to screenshot or query until the next
+# document exists. Bounded, because a page that never settles must not hang the
+# step budget.
+SETTLE_TIMEOUT_MS = 5_000
 
 _ACTIONS_POINTER = """{"action": "click", "x": <int>, "y": <int>, "target": "<what you are aiming at>"}
 {"action": "press", "key": "Tab" | "Shift+Tab" | "Enter"}
@@ -220,7 +224,7 @@ def navigate(
         result.trace.append(entry)
         unverified_done = 0
         history.append(_outcome(action, entry))
-        page.wait_for_timeout(50)
+        _settle(page)
         if emit is not None:
             emit(
                 {
@@ -236,6 +240,20 @@ def navigate(
     if not result.completed:
         result.completed = is_visible(page, success_selector)
     return result
+
+
+def _settle(page) -> None:
+    """Wait out a navigation the action may have started.
+
+    Everything the next lines do -- the preview screenshot in `emit`, the
+    success check, the screenshot the model reasons over -- reads the page, and
+    every one of them raises while a new document is still loading.
+    """
+    try:
+        page.wait_for_load_state("domcontentloaded", timeout=SETTLE_TIMEOUT_MS)
+    except Exception:
+        pass
+    page.wait_for_timeout(50)
 
 
 def _identical_dead_count(trace: list[dict], entry: dict) -> int:

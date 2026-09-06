@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import { Sparkles, X } from "lucide-react";
+import { Images, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import {
-  DEFAULT_GOAL,
-  DEFAULT_SUCCESS,
   DEMO_GOAL,
   DEMO_PROFILES,
   DEMO_STEPS,
   DEMO_SUCCESS,
+  GOAL_PLACEHOLDER,
+  SUCCESS_PLACEHOLDER,
   cancelJob,
   getHealth,
   isDemoCheckout,
+  isUsableSuccessSelector,
+  readImagesAsDataUrls,
   startJob,
+  startScreenshotJob,
 } from "@/lib/coherenceApi";
 import { cancelAudit, useAuditStore, watchJob } from "@/stores/auditStore";
 
@@ -21,10 +24,14 @@ type Props = {
   url: string;
 };
 
+type Mode = "auto" | "screenshots";
+
 export default function RunAuditModal({ isOpen, onClose, url }: Props) {
   const demo = useMemo(() => isDemoCheckout(url), [url]);
-  const [goal, setGoal] = useState(demo ? DEMO_GOAL : DEFAULT_GOAL);
-  const [success, setSuccess] = useState(demo ? DEMO_SUCCESS : DEFAULT_SUCCESS);
+  const [mode, setMode] = useState<Mode>("auto");
+  const [goal, setGoal] = useState(demo ? DEMO_GOAL : "");
+  const [success, setSuccess] = useState(demo ? DEMO_SUCCESS : "");
+  const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const running = useAuditStore((s) => s.running);
@@ -32,13 +39,54 @@ export default function RunAuditModal({ isOpen, onClose, url }: Props) {
 
   useEffect(() => {
     if (!isOpen) return;
-    setGoal(demo ? DEMO_GOAL : DEFAULT_GOAL);
-    setSuccess(demo ? DEMO_SUCCESS : DEFAULT_SUCCESS);
+    setMode("auto");
+    setGoal(demo ? DEMO_GOAL : "");
+    setSuccess(demo ? DEMO_SUCCESS : "");
+    setFiles([]);
     setError("");
     setBusy(false);
   }, [isOpen, demo, url]);
 
   if (!isOpen) return null;
+
+  // The selector is what makes task_completed true. Blank means it can never
+  // fire and every profile scores 0; "body" is visible before the task starts
+  // and every profile scores 1. Neither is a measurement.
+  const selectorState = isUsableSuccessSelector(success);
+  const ready =
+    mode === "screenshots"
+      ? files.length > 0
+      : demo || (goal.trim().length > 0 && selectorState.ok);
+
+  const startCapture = async () => {
+    const body = demo
+      ? {
+          url,
+          success_selector: DEMO_SUCCESS,
+          steps: DEMO_STEPS,
+          profile_ids: DEMO_PROFILES,
+          n_trials: 1,
+          diagnose: true,
+        }
+      : {
+          url,
+          success_selector: success.trim(),
+          goal: goal.trim(),
+          plan_once: true,
+          profile_ids: DEMO_PROFILES,
+          n_trials: 1,
+          diagnose: true,
+        };
+    try {
+      return await startJob(body);
+    } catch (first) {
+      const message = first instanceof Error ? first.message : "";
+      const stuck = message.match(/already running \(([^)]+)\)/);
+      if (!stuck) throw first;
+      await cancelJob(stuck[1]);
+      return await startJob(body);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,39 +101,21 @@ export default function RunAuditModal({ isOpen, onClose, url }: Props) {
       if (running && jobId) {
         await cancelAudit();
       }
-      const body = demo
-        ? {
-            url,
-            success_selector: DEMO_SUCCESS,
-            steps: DEMO_STEPS,
-            profile_ids: DEMO_PROFILES,
-            n_trials: 1,
-            diagnose: true,
-          }
-        : {
-            url,
-            success_selector: success.trim() || DEFAULT_SUCCESS,
-            goal: goal.trim() || DEFAULT_GOAL,
-            plan_once: true,
-            profile_ids: DEMO_PROFILES,
-            n_trials: 1,
-            diagnose: true,
-          };
-      let snap;
-      try {
-        snap = await startJob(body);
-      } catch (first) {
-        const message = first instanceof Error ? first.message : "";
-        const stuck = message.match(/already running \(([^)]+)\)/);
-        if (!stuck) throw first;
-        await cancelJob(stuck[1]);
-        snap = await startJob(body);
-      }
+      const snap =
+        mode === "screenshots"
+          ? await startScreenshotJob({
+              url,
+              images: await readImagesAsDataUrls(files),
+              diagnose: true,
+            })
+          : await startCapture();
       watchJob(snap.job_id);
       toast.success(
-        demo
-          ? "Playwright is capturing the demo checkout"
-          : "Playwright is opening this site",
+        mode === "screenshots"
+          ? `Reading ${files.length} screenshot${files.length === 1 ? "" : "s"}`
+          : demo
+            ? "Playwright is capturing the demo checkout"
+            : "Playwright is opening this site",
       );
       onClose();
     } catch (err) {
@@ -133,7 +163,55 @@ export default function RunAuditModal({ isOpen, onClose, url }: Props) {
             <label className="ws-modal-label">Target</label>
             <input className="ws-modal-input plain" value={url} readOnly />
           </div>
-          {demo ? (
+
+          <div className="ws-modal-field">
+            <label className="ws-modal-label">Capture</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className={`ws-modal-preset-chip ${mode === "auto" ? "is-active" : ""}`}
+                onClick={() => setMode("auto")}
+              >
+                Automatic
+              </button>
+              <button
+                type="button"
+                className={`ws-modal-preset-chip ${mode === "screenshots" ? "is-active" : ""}`}
+                onClick={() => setMode("screenshots")}
+              >
+                My screenshots
+              </button>
+            </div>
+          </div>
+
+          {mode === "screenshots" ? (
+            <>
+              <p className="ws-modal-hint">
+                Visit the pages yourself, screenshot each one, and drop them
+                here in order. No browser runs, so there is no DOM behind these
+                images: contrast, touch-target and WCAG rules are skipped and
+                the score comes back INSUFFICIENT_EVIDENCE. You get the vision
+                read of each view plus Helium&apos;s diagnosis.
+              </p>
+              <div className="ws-modal-field">
+                <label className="ws-modal-label">
+                  Screenshots (PNG or JPEG, up to 12)
+                </label>
+                <input
+                  className="ws-modal-input plain"
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  multiple
+                  onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+                />
+              </div>
+              {files.length ? (
+                <p className="ws-modal-hint">
+                  {files.map((file) => file.name).join(", ")}
+                </p>
+              ) : null}
+            </>
+          ) : demo ? (
             <p className="ws-modal-hint">
               Playwright clicks Place order → Pay now (you will see each
               frame). Helium writes the report after. Wikipedia-style sites
@@ -142,14 +220,15 @@ export default function RunAuditModal({ isOpen, onClose, url }: Props) {
           ) : (
             <>
               <p className="ws-modal-hint">
-                Nitrogen navigates with a goal. Do not use success selector
-                &quot;body&quot; — that skips the VL loop.
+                Nitrogen navigates with a goal. Both fields are required: name
+                a task with an end state, and a selector that appears on the
+                page only once that task is done.
               </p>
               <div className="ws-modal-field">
                 <label className="ws-modal-label">Task goal</label>
                 <input
                   className="ws-modal-input plain"
-                  placeholder={DEFAULT_GOAL}
+                  placeholder={GOAL_PLACEHOLDER}
                   value={goal}
                   onChange={(e) => setGoal(e.target.value)}
                 />
@@ -158,13 +237,19 @@ export default function RunAuditModal({ isOpen, onClose, url }: Props) {
                 <label className="ws-modal-label">Success selector</label>
                 <input
                   className="ws-modal-input plain"
-                  placeholder="body"
+                  placeholder={SUCCESS_PLACEHOLDER}
                   value={success}
                   onChange={(e) => setSuccess(e.target.value)}
                 />
               </div>
+              {success.trim() && !selectorState.ok ? (
+                <p className="ws-modal-hint" style={{ color: "#E8A598" }}>
+                  {selectorState.reason}
+                </p>
+              ) : null}
             </>
           )}
+
           {error ? (
             <p className="ws-modal-hint" style={{ color: "#E8A598" }}>
               {error}
@@ -174,15 +259,21 @@ export default function RunAuditModal({ isOpen, onClose, url }: Props) {
             <button
               type="submit"
               className="ws-toolbar-audit-btn"
-              disabled={busy}
+              disabled={busy || !ready}
             >
-              <Sparkles size={13} />
+              {mode === "screenshots" ? (
+                <Images size={13} />
+              ) : (
+                <Sparkles size={13} />
+              )}
               <span>
                 {busy
                   ? "Starting…"
-                  : running
-                    ? "Restart capture"
-                    : "Start capture"}
+                  : mode === "screenshots"
+                    ? "Read screenshots"
+                    : running
+                      ? "Restart capture"
+                      : "Start capture"}
               </span>
             </button>
             {running ? (
