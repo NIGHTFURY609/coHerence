@@ -10,6 +10,7 @@ interface AddWebsiteModalProps {
 
 const PRESET_SITES = [
   { label: "Wikipedia", url: "https://en.wikipedia.org" },
+  { label: "Gmail", url: "https://mail.google.com" },
   { label: "Netflix", url: "https://www.netflix.com/browse" },
   { label: "YouTube", url: "https://www.youtube.com" },
   { label: "MDN Docs", url: "https://developer.mozilla.org" },

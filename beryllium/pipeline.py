@@ -10,6 +10,7 @@ import hydrogen
 BASELINE_PROFILE_ID = "baseline_default"
 _COMPLETION_METRIC = "task_completion_rate"
 _FRICTION_METRIC = "composite_friction_score"
+_VIEW_FRICTION_RULE = "FLUORINE_VIEW_FRICTION"
 _WARNING_RATIO = 1.5
 _CRITICAL_RATIO = 2.5
 _FRICTION_DELTA = 20.0
@@ -265,27 +266,32 @@ def _host_evidence(folded, baseline_id: str, text_client, vision_client) -> list
         except Exception:
             pass
     if vision_client is not None and shot_path:
-        try:
-            import base64
-
-            image_b64 = base64.b64encode(Path(shot_path).read_bytes()).decode("ascii")
-            note = vision_client.complete(
-                "You flag visible UI friction in a screenshot. Two short sentences. Name controls if you can.",
-                "What on this page is hard to use?",
-                image_b64,
-            ).strip()[:400]
-            if note:
-                items.append(
-                    EvidenceItem(
-                        element_selector="screenshot",
-                        rule_id="FLUORINE_VIEW_FRICTION",
-                        severity=Severity.INFO,
-                        metric_value=note,
-                    ).model_dump(mode="json")
-                )
-        except Exception:
-            pass
+        note = _vision_note(vision_client, shot_path)
+        if note:
+            items.append(
+                EvidenceItem(
+                    element_selector="screenshot",
+                    rule_id=_VIEW_FRICTION_RULE,
+                    severity=Severity.INFO,
+                    metric_value=note,
+                ).model_dump(mode="json")
+            )
     return items
+
+
+def _vision_note(vision_client, shot_path) -> str:
+    """One friction note for one screenshot. Never raises: a note is optional."""
+    import base64
+
+    try:
+        image_b64 = base64.b64encode(Path(shot_path).read_bytes()).decode("ascii")
+        return vision_client.complete(
+            "You flag visible UI friction in a screenshot. Two short sentences. Name controls if you can.",
+            "What on this page is hard to use?",
+            image_b64,
+        ).strip()[:400]
+    except Exception:
+        return ""
 
 
 def _trial_frictions(records) -> dict[str, float]:
@@ -406,3 +412,81 @@ def _build_contract2(
         session_ids=list(session_ids),
     )
     return contract.model_dump(mode="json")
+
+
+def run_screenshot_pipeline(
+    job_id: str,
+    image_paths: list[str],
+    *,
+    url: str,
+    out_root: str | None = None,
+    vision_client=None,
+    diagnose: bool = False,
+    llm_client=None,
+    on_progress=None,
+):
+    """Score screenshots a human captured by hand. No browser, vision only.
+
+    `boron.from_screenshots` writes one Contract 1 record per image, stamped
+    `boron-manual-png-v1`. There is no DOM, no computed style and no a11y tree
+    behind a PNG, so carbon's geometry, contrast and WCAG rules are not run --
+    they would find nothing and reporting that as a clean page would be a lie.
+    One profile means no baseline-vs-constrained pair either, so `disparities`
+    is empty by construction and hydrogen returns INSUFFICIENT_EVIDENCE with a
+    null score. What this path does produce is one vision note per view, plus
+    helium's diagnosis over them when `diagnose` is on.
+    """
+    import boron
+    from carbon.schemas.contracts import EvidenceItem, Severity
+
+    paths = list(image_paths)
+    if not paths:
+        raise ValueError("at least one screenshot is required")
+
+    kwargs = {} if out_root is None else {"out_root": out_root}
+    records = boron.from_screenshots(
+        paths, url=url, session_id=job_id, **kwargs
+    )
+
+    evidence = []
+    for record in records:
+        if on_progress is not None:
+            on_progress(
+                {
+                    "stage": "describe",
+                    "profile_id": record.profile_id,
+                    "session_id": record.session_id,
+                    "screenshot": record.artifacts.screenshot_path,
+                }
+            )
+        if vision_client is None:
+            continue
+        note = _vision_note(vision_client, record.artifacts.screenshot_path)
+        if note:
+            evidence.append(
+                EvidenceItem(
+                    element_selector=f"screenshot:{record.session_id}",
+                    rule_id=_VIEW_FRICTION_RULE,
+                    severity=Severity.INFO,
+                    metric_value=note,
+                )
+            )
+
+    import carbon
+
+    payload = carbon.EvidenceRecord(
+        evidence=evidence,
+        disparities=[],
+        target_url=url,
+        profiles_tested=[BASELINE_PROFILE_ID],
+        session_ids=[record.session_id for record in records],
+    ).model_dump(mode="json")
+
+    if on_progress is not None:
+        on_progress({"stage": "score"})
+    report = hydrogen.evaluate(hydrogen.parse_contract2(payload), job_id)
+    if diagnose:
+        from helium import diagnose as helium_diagnose
+
+        report = helium_diagnose(report, client=llm_client)
+    return report

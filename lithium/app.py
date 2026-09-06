@@ -44,6 +44,10 @@ _DEMO_PAGE = (
     Path(__file__).resolve().parent.parent / "client" / "public" / "demo" / "checkout.html"
 )
 _DEMO_PATH = "/demo/checkout.html"
+# Manual capture upload caps. Images arrive base64 in the JSON body, so the
+# whole batch sits in memory while it is decoded.
+MAX_SCREENSHOTS = 12
+MAX_SCREENSHOT_BYTES = 6 * 1024**2
 
 
 class CreateReportBody(BaseModel):
@@ -72,8 +76,24 @@ class CreateJobBody(BaseModel):
     seed: int | None = None
 
 
+class CreateScreenshotJobBody(BaseModel):
+    """Screenshots a human captured by hand. No browser, no task, no selector."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    url: str
+    images: list[str] = Field(default_factory=list)
+    diagnose: bool = True
+    job_id: str = ""
+
+
 def get_llm_client():
     """Live Helium client is resolved inside helium.diagnose when this is None."""
+    return None
+
+
+def get_vision_client():
+    """Live Fluorine client is constructed in the job when this is None."""
     return None
 
 
@@ -217,6 +237,29 @@ def post_job(
         raise HTTPException(
             status_code=400, detail="pass steps or goal, not both or neither"
         )
+    # A selector that is not on the page under test can never become visible, so
+    # `task_completed` would be False for every profile however well navigation
+    # went, and hydrogen would score a total failure it never measured. Refuse
+    # the run instead of producing that number.
+    selector = body.success_selector.strip()
+    if not selector:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "success_selector is required: a CSS selector that becomes "
+                "visible on the target page only once the task is done"
+            ),
+        )
+    # The mirror of the same problem: these are visible before the task starts,
+    # so every profile would be marked complete at step 0.
+    if selector.lower() in {"body", "html", ":root", "*"}:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"success_selector {selector!r} is visible before the task "
+                "starts; every profile would be scored as complete"
+            ),
+        )
     try:
         url = check_job_url(body.url)
     except ValueError as exc:
@@ -239,6 +282,168 @@ def post_job(
         update={"url": _capture_url(body.url, str(request.base_url))}
     )
     background.add_task(_execute_job, job.job_id, capture, llm_client)
+    return snapshot_job(job)
+
+
+def _decode_images(images: list[str]) -> list[bytes]:
+    """base64 (or a data: URL) -> PNG bytes. Anything Pillow cannot open is a 400."""
+    import base64
+    import binascii
+    from io import BytesIO
+
+    from PIL import Image, UnidentifiedImageError
+
+    if not images:
+        raise HTTPException(status_code=400, detail="at least one screenshot is required")
+    if len(images) > MAX_SCREENSHOTS:
+        raise HTTPException(
+            status_code=400, detail=f"at most {MAX_SCREENSHOTS} screenshots per job"
+        )
+    out: list[bytes] = []
+    for index, item in enumerate(images, start=1):
+        payload = item.split(",", 1)[-1] if item.startswith("data:") else item
+        try:
+            raw = base64.b64decode(payload, validate=True)
+        except (binascii.Error, ValueError):
+            raise HTTPException(
+                status_code=400, detail=f"screenshot {index} is not valid base64"
+            ) from None
+        if len(raw) > MAX_SCREENSHOT_BYTES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"screenshot {index} is larger than {MAX_SCREENSHOT_BYTES // 1024**2} MiB",
+            )
+        # Normalise to PNG: `from_screenshots` writes every image to
+        # screenshot.png, and a JPEG under that name would be served back as
+        # image/png by /preview.
+        try:
+            image = Image.open(BytesIO(raw))
+            image.load()
+        except (UnidentifiedImageError, OSError):
+            raise HTTPException(
+                status_code=400, detail=f"screenshot {index} is not a readable image"
+            ) from None
+        buffer = BytesIO()
+        image.convert("RGB").save(buffer, format="PNG")
+        out.append(buffer.getvalue())
+    return out
+
+
+def _execute_screenshot_job(
+    job_id: str,
+    url: str,
+    images: list[bytes],
+    diagnose: bool,
+    llm_client,
+    vision_client=None,
+) -> None:
+    import tempfile
+
+    update(job_id, status=JobStatus.running, stage="describe")
+
+    def on_progress(event: dict) -> None:
+        live = get_job(job_id)
+        if live is not None and live.error == "cancelled":
+            raise RuntimeError("cancelled")
+        append_event(job_id, event)
+
+    try:
+        if vision_client is None:
+            try:
+                from fluorine import ModalVLClient as FluorineVLClient
+
+                vision_client = FluorineVLClient()
+            except Exception:
+                vision_client = None
+        with tempfile.TemporaryDirectory() as staging:
+            paths = []
+            for index, raw in enumerate(images, start=1):
+                path = Path(staging) / f"{index:03d}.png"
+                path.write_bytes(raw)
+                paths.append(str(path))
+            from beryllium import run_screenshot_pipeline
+
+            report = run_screenshot_pipeline(
+                job_id,
+                paths,
+                url=url,
+                out_root=str(_SESSION_ROOT),
+                vision_client=vision_client,
+                diagnose=False,
+                on_progress=on_progress,
+            )
+        live = get_job(job_id)
+        if live is not None and live.error == "cancelled":
+            return
+        if diagnose:
+            update(job_id, stage="diagnose")
+            try:
+                from helium import diagnose as helium_diagnose
+
+                report = helium_diagnose(
+                    report, client=llm_client if llm_client else None
+                )
+            except Exception:
+                update(job_id, warning="diagnosis unavailable")
+        update(
+            job_id,
+            status=JobStatus.done,
+            stage="done",
+            report=report,
+            error=None,
+        )
+    except Exception as exc:
+        live = get_job(job_id)
+        if live is not None and live.error == "cancelled":
+            return
+        log.exception("screenshot job %s failed", job_id)
+        detail = next(
+            (line.strip() for line in str(exc).splitlines() if line.strip()),
+            "job failed",
+        )
+        update(job_id, status=JobStatus.error, stage="error", error=detail[:500])
+
+
+@app.post("/jobs/screenshots", status_code=202)
+def post_screenshot_job(
+    body: CreateScreenshotJobBody,
+    background: BackgroundTasks,
+    llm_client=Depends(get_llm_client),
+    vision_client=Depends(get_vision_client),
+) -> dict:
+    """Manual capture: the human visited the pages, these are the views.
+
+    Vision only. Nothing here is scored against a baseline, so the report comes
+    back INSUFFICIENT_EVIDENCE with a null score by design -- see
+    `beryllium.run_screenshot_pipeline`.
+    """
+    try:
+        url = check_job_url(body.url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    images = _decode_images(body.images)
+    job_id = body.job_id or _new_id("man")
+    if not job_id_ok(job_id):
+        raise HTTPException(status_code=400, detail="job_id not allowed")
+    busy = running_id()
+    if busy:
+        raise HTTPException(
+            status_code=409,
+            detail=f"capture already running ({busy}); cancel it first",
+        )
+    try:
+        job = put_job(Job(job_id=job_id, n_trials=1, url=url))
+    except KeyError:
+        raise HTTPException(status_code=409, detail="job_id already exists") from None
+    background.add_task(
+        _execute_screenshot_job,
+        job.job_id,
+        url,
+        images,
+        body.diagnose,
+        llm_client,
+        vision_client,
+    )
     return snapshot_job(job)
 
 

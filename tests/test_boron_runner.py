@@ -171,3 +171,73 @@ def test_read_delay_slows_a_profile_down(tmp_path):
     fast = _run("baseline_default", tmp_path)
     slow = _run("esl_users", tmp_path)
     assert slow.telemetry.completion_time_ms > fast.telemetry.completion_time_ms
+
+
+NAV_URL = (Path(__file__).parent / "fixtures" / "nav_start.html").resolve().as_uri()
+NAV_SUCCESS = "#arrived"
+# Centre of #go in nav_start.html on the 0-1000 grid the navigator prompt uses:
+# (300, 350) CSS px of a 1280x800 viewport.
+NAV_CLICK = '{"action": "click", "x": 234, "y": 438, "target": "Go to the next page"}'
+
+
+def _nav_trace(tmp_path, session_id):
+    return json.loads(
+        (Path(tmp_path) / session_id / "nav_trace.json").read_text(encoding="utf-8")
+    )
+
+
+def test_a_click_that_navigates_is_not_a_dead_click(tmp_path):
+    """The mutation counter lives in the document a click can navigate away from.
+
+    Reading that destroyed context as "no change" called the one click that
+    worked a dead click, and the navigator then told the model that element
+    does nothing.
+    """
+    from nitrogen import MockVLClient
+
+    record = run_session(
+        url=NAV_URL,
+        profile_id="baseline_default",
+        session_id="t_nav_goal",
+        goal="Open the second page",
+        success_selector=NAV_SUCCESS,
+        vl_client=MockVLClient(NAV_CLICK),
+        out_root=str(tmp_path),
+    )
+    assert record.telemetry.task_completed is True
+    assert record.telemetry.dead_clicks == 0
+    assert record.telemetry.error_count == 0
+
+    trace = _nav_trace(tmp_path, "t_nav_goal")
+    # Without a path there is nothing for plan_once to replay to the rest.
+    assert trace["activated_selectors"] == ["a#go"]
+    assert not [row for row in trace["trace"] if row.get("error")]
+
+
+def test_scripted_step_that_navigates_is_not_a_dead_click(tmp_path):
+    record = run_session(
+        url=NAV_URL,
+        profile_id="baseline_default",
+        session_id="t_nav_steps",
+        steps=["#go"],
+        success_selector=NAV_SUCCESS,
+        out_root=str(tmp_path),
+    )
+    assert record.telemetry.task_completed is True
+    assert record.telemetry.dead_clicks == 0
+    assert record.telemetry.error_count == 0
+    assert record.telemetry.total_clicks == 1
+
+
+def test_keyboard_enter_that_navigates_is_not_a_dead_click(tmp_path):
+    record = run_session(
+        url=NAV_URL,
+        profile_id="keyboard_only",
+        session_id="t_nav_keys",
+        steps=["#go"],
+        success_selector=NAV_SUCCESS,
+        out_root=str(tmp_path),
+    )
+    assert record.telemetry.task_completed is True
+    assert record.telemetry.dead_clicks == 0
+    assert record.telemetry.error_count == 0

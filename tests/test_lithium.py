@@ -362,3 +362,117 @@ def test_diagnose_failure_keeps_score(client, monkeypatch):
     assert done["status"] == "done"
     assert done["report"]["overall_fairness_score"] == 72
     assert done["warning"] == "diagnosis unavailable"
+
+
+# --- the success selector is what makes task_completed a measurement --------
+
+
+@pytest.mark.parametrize("selector", ["", "   ", "body", "HTML", ":root", "*"])
+def test_a_selector_that_cannot_measure_completion_is_refused(client, selector):
+    """Blank can never fire; `body` fires before the task starts. Neither is data."""
+    response = client.post(
+        "/jobs",
+        json={
+            "url": "https://example.com/checkout",
+            "success_selector": selector,
+            "goal": "Place the order",
+        },
+    )
+    assert response.status_code == 400
+    assert "success_selector" in response.json()["detail"]
+
+
+# --- manual capture: screenshots a human took ------------------------------
+
+
+def _png_bytes(color: str = "white") -> bytes:
+    from io import BytesIO
+
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", (64, 48), color).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _b64(raw: bytes) -> str:
+    import base64
+
+    return base64.b64encode(raw).decode("ascii")
+
+
+def test_screenshot_job_scores_without_a_browser(client, tmp_path, monkeypatch):
+    from nitrogen import MockVLClient
+    from lithium.app import app as lithium_app, get_vision_client
+
+    monkeypatch.setattr("lithium.app._SESSION_ROOT", tmp_path)
+    lithium_app.dependency_overrides[get_vision_client] = lambda: MockVLClient(
+        "The primary button sits below the fold."
+    )
+    try:
+        response = client.post(
+            "/jobs/screenshots",
+            json={
+                "job_id": "man_ok",
+                "url": "https://example.com/checkout",
+                "images": [_b64(_png_bytes()), _b64(_png_bytes("gray"))],
+                "diagnose": False,
+            },
+        )
+        assert response.status_code == 202
+        done = client.get("/jobs/man_ok").json()
+    finally:
+        lithium_app.dependency_overrides.pop(get_vision_client, None)
+
+    assert done["status"] == "done"
+    report = done["report"]
+    # One profile, no constrained pair, so there is no disparity to score. A
+    # null score with INSUFFICIENT_EVIDENCE is the honest answer, not a 100.
+    assert report["overall_fairness_score"] is None
+    assert report["score_status"] == ScoreStatus.INSUFFICIENT_EVIDENCE.value
+    assert report["profiles_tested"] == ["baseline_default"]
+    assert (tmp_path / "man_ok_1" / "screenshot.png").is_file()
+    assert (tmp_path / "man_ok_2" / "screenshot.png").is_file()
+
+
+def test_screenshot_job_rejects_unreadable_uploads(client):
+    assert client.post(
+        "/jobs/screenshots", json={"url": "https://example.com", "images": []}
+    ).status_code == 400
+    assert client.post(
+        "/jobs/screenshots",
+        json={"url": "https://example.com", "images": [_b64(b"not an image")]},
+    ).status_code == 400
+    assert client.post(
+        "/jobs/screenshots",
+        json={"url": "https://example.com", "images": [_b64(_png_bytes())] * 13},
+    ).status_code == 400
+
+
+def test_jobs_expand_gmail_alias(client, monkeypatch):
+    """gmail.com serves marketing when signed out; the product is the mail host."""
+    from helium.example import example_report
+
+    seen = {}
+
+    def fake_pipeline(job_id, **kwargs):
+        seen["url"] = kwargs["url"]
+        return example_report()
+
+    monkeypatch.setattr("lithium.app.run_pipeline", fake_pipeline)
+    for raw in ("https://gmail/", "gmail.com", "https://www.gmail.com"):
+        clear_jobs()
+        seen.clear()
+        response = client.post(
+            "/jobs",
+            json={
+                "job_id": "job_gmail",
+                "url": raw,
+                "success_selector": "#gb",
+                "goal": "Open the first message in the inbox",
+                "diagnose": False,
+            },
+        )
+        assert response.status_code == 202, raw
+        assert response.json()["url"] == "https://mail.google.com"
+        assert seen["url"] == "https://mail.google.com"
