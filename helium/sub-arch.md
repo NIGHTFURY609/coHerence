@@ -16,8 +16,8 @@ Helium’s job is to take those evidence-backed results and **explain the overal
 |---|--------|------|
 | 1 | `hydrogen/` | Score + ranked findings (done) |
 | 2 | `helium/` | Report synthesis LLM (this doc) |
-| 3 | `lithium/` | FastAPI (later) |
-| 4 | `beryllium/` | Job runner, `n_trials` (later) |
+| 3 | `lithium/` | FastAPI |
+| 4 | `beryllium/` | Job runner, `n_trials` |
 
 Code and this doc live in `helium/`.
 
@@ -200,8 +200,8 @@ Swapping the checkpoint is still `helium.REPORT_MODEL` only. v1 does **not** tak
 
 | Call | Notes |
 |------|--------|
-| `lithium.create_report` | `hydrogen.evaluate` then `helium.diagnose` |
-| `beryllium.run_pipeline` | Owns `n_trials`. Helium never sees N |
+| `lithium.create_report` | `hydrogen.evaluate` then `helium.diagnose` (implemented) |
+| `beryllium.run_pipeline` | Owns `n_trials`. Helium never sees N (implemented) |
 
 ---
 

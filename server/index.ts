@@ -18,6 +18,30 @@ async function startServer() {
 
   app.use(express.static(staticPath));
 
+  const lithium = process.env.LITHIUM_URL || "http://127.0.0.1:8000";
+  app.use(["/api/jobs", "/api/reports", "/api/profiles", "/api/health"], async (req, res) => {
+    try {
+      const target = lithium + req.originalUrl.replace(/^\/api/, "");
+      const headers: Record<string, string> = {};
+      const contentType = req.headers["content-type"];
+      if (contentType) headers["content-type"] = String(contentType);
+      const incoming: RequestInit = { method: req.method, headers };
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) chunks.push(chunk as Buffer);
+        incoming.body = Buffer.concat(chunks);
+      }
+      const response = await fetch(target, incoming);
+      res.status(response.status);
+      const buf = Buffer.from(await response.arrayBuffer());
+      const type = response.headers.get("content-type");
+      if (type) res.set("Content-Type", type);
+      res.send(buf);
+    } catch (err: any) {
+      res.status(502).send(err.message || "lithium unavailable");
+    }
+  });
+
   app.get("/api/proxy-site", async (req, res) => {
     try {
       const target = req.query.url as string;

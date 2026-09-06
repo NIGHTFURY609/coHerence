@@ -25,6 +25,7 @@ from boron.capture import (
     CANONICAL_SELECTOR_SCRIPT,
     capture_artifacts,
     element_at_point,
+    write_preview,
 )
 from boron.models import (
     CAPTURE_POLICY,
@@ -39,6 +40,9 @@ from boron.profiles import get_profile
 DATA_ROOT = "data/sessions"
 
 DEFAULT_SEED = 1729
+# Wikipedia and other ad-heavy pages never fire `load`. Capture must not hang.
+GOTO_TIMEOUT_MS = 20_000
+DEFAULT_TIMEOUT_MS = 20_000
 
 NAV_TRACE_FILENAME = "nav_trace.json"
 
@@ -97,6 +101,7 @@ def run_session(
     max_steps: int = MAX_STEPS,
     out_root: str = DATA_ROOT,
     seed: int = DEFAULT_SEED,
+    on_progress=None,
 ) -> RawSessionArtifacts:
     """Drive one profile through one task. Writes artifacts, returns Contract 1."""
     if (steps is None) == (goal is None):
@@ -108,27 +113,51 @@ def run_session(
     out_dir = Path(out_root) / session_id
 
     with _driver() as p:
-        browser = p.chromium.launch()
+        browser = p.chromium.launch(
+            args=[
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--use-gl=swiftshader",
+            ]
+        )
         context = browser.new_context(
             viewport={
                 "width": profile.viewport_width,
                 "height": profile.viewport_height,
             },
             has_touch=profile.has_touch,
+            color_scheme="light",
         )
         page = context.new_page()
+        page.set_default_timeout(DEFAULT_TIMEOUT_MS)
         errors: list[str] = []
         page.on("pageerror", lambda exc: errors.append(str(exc)))
 
         page.add_init_script(_OBSERVER_SCRIPT)
-        page.goto(url, wait_until="load")
+        page.goto(url, wait_until="domcontentloaded", timeout=GOTO_TIMEOUT_MS)
+        page.wait_for_timeout(400)
         if profile.zoom != 1.0:
             page.evaluate("(z) => { document.body.style.zoom = z; }", profile.zoom)
 
         rng = random.Random(seed)
         started = time.perf_counter()
+
+        def emit(event: dict) -> None:
+            if on_progress is None:
+                return
+            shot = write_preview(page, out_dir)
+            on_progress(
+                {
+                    "profile_id": profile.id,
+                    "session_id": session_id,
+                    "screenshot": shot,
+                    **event,
+                }
+            )
+
+        emit({"stage": "page_ready"})
         if steps is not None:
-            counters = _run_steps(page, profile, steps, errors, rng)
+            counters = _run_steps(page, profile, steps, errors, rng, emit=emit)
             completed = _is_visible(page, success_selector)
             vl_ms = 0
             nav = None
@@ -145,6 +174,7 @@ def run_session(
                 max_steps=max_steps,
                 errors=errors,
                 counters=counters,
+                emit=emit,
             )
             completed = nav.completed
             vl_ms = nav.vl_ms
@@ -216,16 +246,20 @@ def _write_nav_trace(out_dir: Path, nav, goal, mode: str, vl_ms: int) -> None:
     )
 
 
-def _run_steps(page, profile, steps, errors, rng) -> dict[str, int]:
+def _run_steps(page, profile, steps, errors, rng, emit=None) -> dict[str, int]:
     counters = _new_counters()
     for selector in steps:
         try:
             if profile.read_delay_ms:
                 page.wait_for_timeout(profile.read_delay_ms)
             _activate(page, profile, selector, counters, rng)
+            if emit is not None:
+                emit({"stage": "step", "selector": selector})
         except Exception as exc:  # a step that cannot be reached is a real failure
             errors.append(f"{selector}: {exc}")
             _record_failure(counters, selector, page)
+            if emit is not None:
+                emit({"stage": "step", "selector": selector, "failed": True})
             break
     return counters
 
@@ -373,6 +407,7 @@ def run_suite(
     runs: int = 1,
     out_root: str = DATA_ROOT,
     seed: int = DEFAULT_SEED,
+    on_progress=None,
 ) -> list[RawSessionArtifacts]:
     """Run every profile through the same task. One record per (profile, run).
 
@@ -398,6 +433,14 @@ def run_suite(
             if plan_once and position > 0:
                 use_goal, use_steps = None, replay_steps or []
 
+            if on_progress is not None:
+                on_progress(
+                    {
+                        "stage": "profile_start",
+                        "profile_id": profile_id,
+                        "session_id": session_id,
+                    }
+                )
             record = run_session(
                 url=url,
                 profile_id=profile_id,
@@ -410,6 +453,7 @@ def run_suite(
                 out_root=out_root,
                 # Each run needs its own seed or repeats are byte-identical.
                 seed=seed + index,
+                on_progress=on_progress,
             )
             if plan_once and position > 0:
                 # The path came from the model even though this run replayed it.
@@ -417,14 +461,32 @@ def run_suite(
                     update={"capture_policy": CAPTURE_POLICY_VL}
                 )
                 _write_replay_trace(Path(out_root) / session_id, goal, use_steps)
-            elif plan_once and replay_steps is None:
-                replay_steps = _plan_from(Path(out_root) / session_id, record)
             records.append(record)
+            if on_progress is not None:
+                on_progress(
+                    {
+                        "stage": "profile_done",
+                        "profile_id": record.profile_id,
+                        "session_id": record.session_id,
+                        "screenshot": record.artifacts.screenshot_path,
+                        "task_completed": record.telemetry.task_completed,
+                        "error_count": record.telemetry.error_count,
+                    }
+                )
+            if plan_once and position == 0 and replay_steps is None:
+                try:
+                    replay_steps = _plan_from(Path(out_root) / session_id, record)
+                except PlanFailed as exc:
+                    raise PlanFailed(str(exc), records=list(records)) from exc
     return records
 
 
 class PlanFailed(RuntimeError):
     """The planning run produced no usable path, so there is nothing to replay."""
+
+    def __init__(self, message: str, records=None):
+        super().__init__(message)
+        self.records = list(records or [])
 
 
 def _plan_from(out_dir: Path, record: RawSessionArtifacts) -> list[str]:

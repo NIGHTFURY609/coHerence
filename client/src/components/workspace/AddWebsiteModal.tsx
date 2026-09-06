@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Globe, X, Laptop, Smartphone, Monitor, ExternalLink } from "lucide-react";
+import { canonicalizeSiteUrl } from "@/lib/coherenceApi";
 
 interface AddWebsiteModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ const PRESET_SITES = [
   { label: "MDN Docs", url: "https://developer.mozilla.org" },
   { label: "GitHub", url: "https://github.com" },
   { label: "CoHERence Home", url: window.location.origin },
+  { label: "Demo checkout", url: `${window.location.origin}/demo/checkout.html` },
 ];
 
 const PRESET_SIZES = [
@@ -44,13 +46,8 @@ export default function AddWebsiteModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    let finalUrl = url.trim();
+    let finalUrl = canonicalizeSiteUrl(url);
     if (!finalUrl) return;
-
-    // Prepend https:// if not present and not relative
-    if (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://") && !finalUrl.startsWith("/")) {
-      finalUrl = "https://" + finalUrl;
-    }
 
     let defaultName = name.trim();
     if (!defaultName) {

@@ -1,0 +1,364 @@
+"""Lithium HTTP + create_report. Mock LLM. No live GPU."""
+
+import pytest
+from fastapi.testclient import TestClient
+
+from helium.client import MockLLMClient
+from helium.example import example_bundle
+from hydrogen.models import ScoreStatus
+from lithium.app import app, get_llm_client
+from lithium.jobs import clear as clear_jobs
+from lithium.reports import create_report
+
+
+@pytest.fixture
+def client():
+    clear_jobs()
+    return TestClient(app)
+
+
+def test_create_report_without_diagnose_locks_hydrogen_score():
+    bundle = example_bundle()
+    report = create_report(
+        bundle.model_dump(mode="json"), "rep_1", diagnose=False
+    )
+    assert report.report_id == "rep_1"
+    assert report.overall_fairness_score == 72
+    assert report.analyst == "hydrogen"
+    assert report.diagnosis == ""
+    assert report.findings[0].diagnosis == ""
+
+
+def test_create_report_diagnose_does_not_change_score():
+    report = create_report(
+        example_bundle(),
+        "rep_2",
+        diagnose=True,
+        llm_client=MockLLMClient(),
+    )
+    assert report.analyst == "helium"
+    assert report.overall_fairness_score == 72
+    assert report.score_status is ScoreStatus.VALID
+    assert report.scoring_policy == "hydrogen-v1"
+    assert report.diagnosis
+    assert report.findings[0].diagnosis == ""
+
+
+def test_empty_bundle_stays_null_not_one_hundred():
+    report = create_report(
+        {
+            "evidence": [],
+            "disparities": [],
+            "target_url": "https://example.com",
+            "profiles_tested": ["baseline_default"],
+        },
+        "rep_empty",
+        diagnose=False,
+    )
+    assert report.overall_fairness_score is None
+    assert report.score_status is ScoreStatus.INSUFFICIENT_EVIDENCE
+
+
+def test_post_reports_diagnose_false(client):
+    body = example_bundle().model_dump(mode="json")
+    body["report_id"] = "rep_http"
+    body["diagnose"] = False
+    response = client.post("/reports", json=body)
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["report_id"] == "rep_http"
+    assert payload["overall_fairness_score"] == 72
+    assert payload["analyst"] == "hydrogen"
+    assert payload["diagnosis"] == ""
+
+
+def test_post_reports_null_score_is_json_null(client):
+    response = client.post(
+        "/reports",
+        json={
+            "report_id": "rep_null",
+            "diagnose": False,
+            "evidence": [],
+            "disparities": [],
+            "target_url": "https://example.com",
+            "profiles_tested": [],
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["overall_fairness_score"] is None
+    assert payload["score_status"] == "INSUFFICIENT_EVIDENCE"
+
+
+def test_post_reports_diagnose_uses_override(client):
+    app.dependency_overrides[get_llm_client] = lambda: MockLLMClient()
+    try:
+        body = example_bundle().model_dump(mode="json")
+        body["report_id"] = "rep_llm"
+        body["diagnose"] = True
+        response = client.post("/reports", json=body)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["analyst"] == "helium"
+        assert payload["overall_fairness_score"] == 72
+        assert payload["diagnosis"]
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_health(client):
+    assert client.get("/health").json() == {"ok": True}
+
+
+def test_demo_checkout_is_served(client):
+    response = client.get("/demo/checkout.html")
+    assert response.status_code == 200
+    assert b"fake-button" in response.content
+
+
+def test_cancel_marks_running_job(client, monkeypatch):
+    from helium.example import example_report
+    from lithium.jobs import Job, JobStatus, put as put_job, running_id
+
+    monkeypatch.setattr("lithium.app.run_pipeline", lambda *_a, **_k: example_report())
+    put_job(Job(job_id="job_stuck", url="https://example.com", status=JobStatus.running))
+    assert running_id() == "job_stuck"
+    blocked = client.post(
+        "/jobs",
+        json={
+            "job_id": "job_blocked",
+            "url": "https://example.com/checkout",
+            "success_selector": "#done",
+            "steps": ["#a"],
+            "diagnose": False,
+        },
+    )
+    assert blocked.status_code == 409
+    cancelled = client.post("/jobs/job_stuck/cancel")
+    assert cancelled.status_code == 200
+    assert cancelled.json()["error"] == "cancelled"
+    nxt = client.post(
+        "/jobs",
+        json={
+            "job_id": "job_after",
+            "url": "https://example.com/checkout",
+            "success_selector": "#done",
+            "steps": ["#a"],
+            "diagnose": False,
+        },
+    )
+    assert nxt.status_code == 202
+
+
+def test_jobs_run_pipeline_in_background(client, monkeypatch):
+    from helium.example import example_report
+
+    def fake_pipeline(job_id, **kwargs):
+        assert kwargs["n_trials"] == 2
+        assert kwargs["url"] == "https://example.com/checkout"
+        assert kwargs["diagnose"] is False
+        return example_report()
+
+    monkeypatch.setattr("lithium.app.run_pipeline", fake_pipeline)
+    response = client.post(
+        "/jobs",
+        json={
+            "job_id": "job_bg",
+            "url": "https://example.com/checkout",
+            "n_trials": 2,
+            "success_selector": "#done",
+            "steps": ["#a"],
+            "diagnose": False,
+        },
+    )
+    assert response.status_code == 202
+    assert response.json()["status"] in {"queued", "running", "done"}
+    done = client.get("/jobs/job_bg")
+    assert done.status_code == 200
+    assert done.json()["status"] == "done"
+    assert done.json()["n_trials"] == 2
+    report = client.get("/jobs/job_bg/report")
+    assert report.status_code == 200
+    assert report.json()["overall_fairness_score"] == 72
+
+
+def test_jobs_require_steps_or_goal(client):
+    response = client.post(
+        "/jobs",
+        json={
+            "url": "https://example.com",
+            "success_selector": "#x",
+            "n_trials": 1,
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_jobs_reject_n_trials_zero(client):
+    response = client.post(
+        "/jobs",
+        json={
+            "url": "https://example.com",
+            "n_trials": 0,
+            "success_selector": "#x",
+            "steps": ["#a"],
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_unknown_job_is_404(client):
+    assert client.get("/jobs/missing").status_code == 404
+
+
+def test_jobs_expand_wikipedia_alias(client, monkeypatch):
+    from helium.example import example_report
+
+    seen = {}
+
+    def fake_pipeline(job_id, **kwargs):
+        seen["url"] = kwargs["url"]
+        return example_report()
+
+    monkeypatch.setattr("lithium.app.run_pipeline", fake_pipeline)
+    for raw in ("https://wiki/", "https://wikipedia/", "wikipedia"):
+        clear_jobs()
+        seen.clear()
+        response = client.post(
+            "/jobs",
+            json={
+                "job_id": "job_alias",
+                "url": raw,
+                "success_selector": "#done",
+                "steps": ["#a"],
+                "diagnose": False,
+            },
+        )
+        assert response.status_code == 202, raw
+        assert response.json()["url"] == "https://en.wikipedia.org"
+        assert seen["url"] == "https://en.wikipedia.org"
+
+
+def test_jobs_reject_unknown_bare_hostname(client):
+    response = client.post(
+        "/jobs",
+        json={
+            "url": "https://notasite/",
+            "success_selector": "#x",
+            "steps": ["#a"],
+        },
+    )
+    assert response.status_code == 400
+    assert "not a DNS name" in response.json()["detail"]
+
+
+def test_jobs_reject_file_url(client):
+    response = client.post(
+        "/jobs",
+        json={
+            "url": "file:///etc/passwd",
+            "success_selector": "#x",
+            "steps": ["#a"],
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_jobs_reject_metadata_ip(client):
+    response = client.post(
+        "/jobs",
+        json={
+            "url": "http://169.254.169.254/latest/meta-data",
+            "success_selector": "#x",
+            "steps": ["#a"],
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_jobs_reject_path_job_id(client):
+    response = client.post(
+        "/jobs",
+        json={
+            "job_id": "../etc",
+            "url": "https://example.com",
+            "success_selector": "#x",
+            "steps": ["#a"],
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_jobs_ignore_out_root(client, monkeypatch):
+    from helium.example import example_report
+
+    seen = {}
+
+    def fake_pipeline(job_id, **kwargs):
+        seen.update(kwargs)
+        return example_report()
+
+    monkeypatch.setattr("lithium.app.run_pipeline", fake_pipeline)
+    response = client.post(
+        "/jobs",
+        json={
+            "job_id": "job_root",
+            "url": "https://example.com/checkout",
+            "success_selector": "#done",
+            "steps": ["#a"],
+            "diagnose": False,
+            "out_root": "/tmp/evil",
+        },
+    )
+    assert response.status_code == 202
+    assert seen["out_root"].endswith("data/sessions") or "data/sessions" in seen["out_root"]
+    assert seen.get("out_root") != "/tmp/evil"
+
+
+def test_job_failure_surfaces_exception(client, monkeypatch):
+    def boom(*_a, **_k):
+        raise RuntimeError("Page.goto: net::ERR_NAME_NOT_RESOLVED at https://wiki/")
+
+    monkeypatch.setattr("lithium.app.run_pipeline", boom)
+    response = client.post(
+        "/jobs",
+        json={
+            "job_id": "job_dns",
+            "url": "https://wiki/",
+            "success_selector": "#done",
+            "goal": "browse the page",
+            "diagnose": False,
+        },
+    )
+    assert response.status_code == 202
+    done = client.get("/jobs/job_dns").json()
+    assert done["status"] == "error"
+    assert "ERR_NAME_NOT_RESOLVED" in done["error"]
+
+
+def test_diagnose_failure_keeps_score(client, monkeypatch):
+    from helium.example import example_report
+
+    monkeypatch.setattr(
+        "lithium.app.run_pipeline", lambda *a, **k: example_report()
+    )
+
+    def boom(*_a, **_k):
+        raise RuntimeError("gpu down")
+
+    monkeypatch.setattr("helium.engine.diagnose", boom)
+    response = client.post(
+        "/jobs",
+        json={
+            "job_id": "job_diag",
+            "url": "https://example.com/checkout",
+            "success_selector": "#done",
+            "steps": ["#a"],
+            "diagnose": True,
+        },
+    )
+    assert response.status_code == 202
+    done = client.get("/jobs/job_diag").json()
+    assert done["status"] == "done"
+    assert done["report"]["overall_fairness_score"] == 72
+    assert done["warning"] == "diagnosis unavailable"

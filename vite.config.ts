@@ -300,6 +300,12 @@ export default defineConfig({
     port: 3000,
     strictPort: false, // Will find next available port if 3000 is busy
     host: true,
+    proxy: {
+      "/api/jobs": { target: "http://127.0.0.1:8000", rewrite: (p) => p.replace(/^\/api/, "") },
+      "/api/reports": { target: "http://127.0.0.1:8000", rewrite: (p) => p.replace(/^\/api/, "") },
+      "/api/profiles": { target: "http://127.0.0.1:8000", rewrite: (p) => p.replace(/^\/api/, "") },
+      "/api/health": { target: "http://127.0.0.1:8000", rewrite: (p) => p.replace(/^\/api/, "") },
+    },
     allowedHosts: [
       ".manuspre.computer",
       ".manus.computer",

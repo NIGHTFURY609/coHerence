@@ -417,22 +417,39 @@ def test_plan_once_refuses_to_replay_an_empty_path(tmp_path):
     """Otherwise every profile runs zero steps and reports zero errors -- a
     suite where nobody completes, which reads downstream as 'this site fails
     everyone' when the model simply could not drive it."""
-    with pytest.raises(PlanFailed, match="activated nothing"):
+    with pytest.raises(PlanFailed, match="activated nothing") as caught:
         run_suite(
             url=FIXTURE_URL, profile_ids=["baseline_default", "motor_impaired"],
             session_id_prefix="dud", success_selector=SUCCESS, goal=GOAL,
             vl_client=_DudVLClient(), plan_once=True, out_root=str(tmp_path),
         )
+    assert [r.profile_id for r in caught.value.records] == ["baseline_default"]
 
 
 def test_plan_once_refuses_to_replay_an_unproven_path(tmp_path):
     """A planning run that never reached the goal has not proven its path."""
-    with pytest.raises(PlanFailed, match="unproven"):
+    with pytest.raises(PlanFailed, match="unproven") as caught:
         run_suite(
             url=FIXTURE_URL, profile_ids=["baseline_default", "motor_impaired"],
             session_id_prefix="partial", success_selector=SUCCESS, goal=GOAL,
             vl_client=_PartialVLClient(), plan_once=True, out_root=str(tmp_path),
         )
+    assert [r.profile_id for r in caught.value.records] == ["baseline_default"]
+
+
+def test_repeated_dead_click_stops_the_loop(tmp_path):
+    record, client = _run(
+        tmp_path,
+        "baseline_default",
+        [DEAD_SPOT, DEAD_SPOT, DEAD_SPOT, FAKE_BUTTON, SUBMIT],
+        max_steps=12,
+    )
+    assert record.telemetry.task_completed is False
+    assert len(client.calls) == 2
+    trace = json.loads(
+        (Path(tmp_path) / "vl_baseline_default" / "nav_trace.json").read_text()
+    )
+    assert trace["steps_taken"] == 2
 
 
 def test_plan_once_needs_a_goal(tmp_path):

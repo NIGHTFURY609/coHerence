@@ -1,4 +1,5 @@
 import { useWorkspaceStore } from "@/stores/workspaceStore";
+import { useAuditStore } from "@/stores/auditStore";
 
 const toolLabels: Record<string, string> = {
   select: "Select",
@@ -14,6 +15,7 @@ const toolLabels: Record<string, string> = {
 
 export default function WorkspaceStatusbar() {
   const { elements, selectedIds, activeTool, canvas } = useWorkspaceStore();
+  const audit = useAuditStore();
 
   return (
     <footer className="ws-statusbar">
@@ -25,7 +27,19 @@ export default function WorkspaceStatusbar() {
         )}
       </div>
       <div className="ws-statusbar-section">
-        <span>{toolLabels[activeTool] ?? activeTool}</span>
+        <span>
+          {audit.apiOnline === false
+            ? "API offline · uvicorn lithium.app:app --port 8000"
+            : audit.status === "error"
+              ? `Audit failed${audit.error ? ` · ${audit.error}` : ""}`
+              : audit.status === "running"
+              ? `Audit · ${audit.currentProfile || audit.stage || "running"}`
+              : audit.stage === "diagnose"
+                ? "Helium · writing report"
+                : audit.status === "done" && audit.report
+                  ? `${audit.report.analyst === "helium" ? "Helium" : "Hydrogen"} · ${audit.report.overall_fairness_score ?? "—"}/100`
+                : (toolLabels[activeTool] ?? activeTool)}
+        </span>
       </div>
       <div className="ws-statusbar-section">
         <span>{Math.round(canvas.zoom * 100)}%</span>

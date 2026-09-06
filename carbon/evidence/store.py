@@ -52,18 +52,16 @@ class EvidenceStore:
             self.session_ids.append(session_id)
 
     def build_record(self) -> EvidenceRecord:
-        """Compile contents into an EvidenceRecord adhering to Contract 2."""
-        profiles = list(self.profiles_tested)
-        if not profiles:
-            for d in self.disparities:
-                if d.disadvantaged_group and d.disadvantaged_group not in profiles:
-                    profiles.append(d.disadvantaged_group)
+        """Compile contents into an EvidenceRecord adhering to Contract 2.
 
+        `profiles_tested` is the caller's roster. Do not infer it from
+        `disadvantaged_group` — that drops groups with no disparity row.
+        """
         return EvidenceRecord(
             evidence=self.evidence,
             disparities=self.disparities,
             target_url=self.target_url,
-            profiles_tested=profiles,
+            profiles_tested=list(self.profiles_tested),
             session_ids=self.session_ids,
             analyzed_at=datetime.now(timezone.utc).isoformat(),
         )
@@ -94,6 +92,8 @@ class EvidenceStore:
             evidence=record.evidence,
             disparities=record.disparities,
             session_ids=record.session_ids or [],
+            target_url=record.target_url or "",
+            profiles_tested=list(record.profiles_tested or []),
         )
 
     def filter_by_severity(self, severity: Severity) -> List[EvidenceItem]:

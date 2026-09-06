@@ -16,6 +16,8 @@ import {
 import { toast } from "sonner";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import AddWebsiteModal from "./AddWebsiteModal";
+import { previewUrl } from "@/lib/coherenceApi";
+import { useAuditStore } from "@/stores/auditStore";
 
 interface MilestoneStep {
   id: string;
@@ -30,12 +32,31 @@ export default function WorkspaceSideTab() {
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [isWebsiteModalOpen, setIsWebsiteModalOpen] = useState(false);
 
-  // Functional milestones in progress
-  const [steps, setSteps] = useState<MilestoneStep[]>([
-    { id: "1", label: "Research & References", completed: true },
-    { id: "2", label: "Composition & Layout", completed: true },
-    { id: "3", label: "Review & Finalize", completed: false },
-  ]);
+  const audit = useAuditStore();
+  const pipeline = [
+    { id: "capture", label: "Playwright" },
+    { id: "rules", label: "Rules" },
+    { id: "score", label: "Hydrogen" },
+    { id: "done", label: "Helium" },
+  ];
+  const finished =
+    audit.status === "done"
+      ? 4
+      : audit.stage === "diagnose"
+        ? 3
+        : audit.stage === "score"
+          ? 2
+          : audit.stage === "rules"
+            ? 1
+            : audit.stage
+              ? 0
+              : -1;
+  const steps: MilestoneStep[] = pipeline.map((step, idx) => ({
+    id: step.id,
+    label: step.label,
+    completed: finished > idx,
+  }));
+  const rank = finished;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const {
@@ -53,21 +74,8 @@ export default function WorkspaceSideTab() {
   const completedStepsCount = steps.filter((s) => s.completed).length;
   const progressPct = Math.round((completedStepsCount / steps.length) * 100);
 
-  const toggleStep = (id: string) => {
-    setSteps((prev) =>
-      prev.map((s) => {
-        if (s.id === id) {
-          const next = !s.completed;
-          toast.success(
-            next
-              ? `Completed milestone: ${s.label}`
-              : `Marked milestone pending: ${s.label}`,
-          );
-          return { ...s, completed: next };
-        }
-        return s;
-      }),
-    );
+  const toggleStep = (_id: string) => {
+    /* Pipeline steps are driven by the running job. */
   };
 
   const handleAddContextClick = (e: React.MouseEvent) => {
@@ -272,7 +280,7 @@ export default function WorkspaceSideTab() {
                     title={`Step ${idx + 1}: ${step.label} (${step.completed ? "Complete" : "Pending"})`}
                   >
                     <div
-                      className={`ws-sidetab-step-circle ${step.completed ? "completed" : idx === 2 ? "active" : ""}`}
+                      className={`ws-sidetab-step-circle ${step.completed ? "completed" : rank === idx ? "active" : ""}`}
                     >
                       {step.completed && <Check size={13} strokeWidth={2.4} />}
                     </div>
@@ -296,7 +304,30 @@ export default function WorkspaceSideTab() {
               <span className="ws-sidetab-step-pct">{progressPct}%</span>
             </div>
 
-            <p className="ws-sidetab-desc">See task progress for longer tasks.</p>
+            <p className="ws-sidetab-desc">
+              {audit.stage === "diagnose"
+                ? "Helium is writing diagnosis from the Hydrogen report."
+                : audit.status === "running"
+                  ? `Playwright · ${audit.currentProfile.replaceAll("_", " ") || "starting"}${
+                      typeof audit.events.at(-1)?.selector === "string"
+                        ? ` → ${String(audit.events.at(-1)?.selector)}`
+                        : ""
+                    }`
+                  : audit.status === "done"
+                    ? audit.report?.analyst === "helium"
+                      ? "Helium report ready"
+                      : "Score ready (Helium did not run)"
+                    : audit.apiOnline === false
+                      ? "Lithium is offline. Reports cannot run."
+                      : "Audit runs Playwright in this tab, then Helium on the B300."}
+            </p>
+            {audit.jobId && audit.previewBust > 0 ? (
+              <img
+                className="ws-sidetab-preview"
+                alt="Playwright viewport"
+                src={previewUrl(audit.jobId, audit.previewBust)}
+              />
+            ) : null}
           </div>
         )}
       </div>
@@ -377,10 +408,18 @@ export default function WorkspaceSideTab() {
 
               <div className="ws-sidetab-output-meta">
                 <span className="ws-sidetab-output-count">
-                  {elements.length} Canvas Element{elements.length === 1 ? "" : "s"}
+                  {audit.report
+                    ? audit.report.overall_fairness_score === null
+                      ? "Score unavailable"
+                      : `Fairness ${audit.report.overall_fairness_score}/100`
+                    : `${elements.length} Canvas Element${elements.length === 1 ? "" : "s"}`}
                 </span>
                 <span className="ws-sidetab-output-sub">
-                  {referencedWebsites.length} site{referencedWebsites.length === 1 ? "" : "s"} • {referencedImages.length} media
+                  {audit.report
+                    ? audit.report.breakdown?.bottleneck_group
+                      ? `Bottleneck: ${audit.report.breakdown.bottleneck_group.replaceAll("_", " ")}`
+                      : audit.report.score_status
+                    : `${referencedWebsites.length} site${referencedWebsites.length === 1 ? "" : "s"} • ${referencedImages.length} media`}
                 </span>
               </div>
             </div>
@@ -407,9 +446,27 @@ export default function WorkspaceSideTab() {
               </button>
             </div>
 
-            <p className="ws-sidetab-desc">
-              View and open files created during this task.
-            </p>
+            {audit.report ? (
+              <div className="ws-sidetab-report">
+                <p className="ws-sidetab-desc">
+                  <strong>{audit.report.analyst === "helium" ? "Helium" : "Hydrogen"}</strong>
+                  {audit.warning ? ` · ${audit.warning}` : ""}
+                </p>
+                {audit.report.diagnosis ? (
+                  <p className="ws-sidetab-desc">{audit.report.diagnosis}</p>
+                ) : null}
+                {audit.report.remediation ? (
+                  <p className="ws-sidetab-desc">{audit.report.remediation}</p>
+                ) : null}
+                {audit.report.findings?.[0] ? (
+                  <p className="ws-sidetab-desc">{audit.report.findings[0].title}</p>
+                ) : null}
+              </div>
+            ) : (
+              <p className="ws-sidetab-desc">
+                Helium diagnosis appears here after Playwright and Hydrogen.
+              </p>
+            )}
           </div>
         )}
       </div>

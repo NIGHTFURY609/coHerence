@@ -12,6 +12,16 @@ def test_mock_client_returns_raw_text():
     assert client.last_image_b64 == "abc"
 
 
+def test_vl_request_attaches_pixels(monkeypatch):
+    from helium import modal_app as ma
+
+    monkeypatch.setattr(ma, "_decode_image", lambda _b64: "IMG")
+    request = ma._vl_generate_request("hello", "abc")
+    assert request["prompt"] == "hello"
+    assert request["multi_modal_data"]["image"] == "IMG"
+    assert "multi_modal_data" not in ma._vl_generate_request("hello", None)
+
+
 def test_modal_client_uses_shared_gpu(monkeypatch):
     import helium.runtime as rt
 

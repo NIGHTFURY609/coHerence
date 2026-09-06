@@ -51,7 +51,7 @@ export function useWorkspaceKeyboard() {
             return;
           case "w":
             e.preventDefault();
-            s.setActiveTool("website");
+            window.dispatchEvent(new Event("coherence-add-website"));
             return;
           case "delete":
           case "backspace":

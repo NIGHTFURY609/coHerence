@@ -86,6 +86,14 @@ _ELEMENT_SCRIPT = r"""
 """
 
 
+def write_preview(page, out_dir: Path) -> str:
+    """Viewport PNG for the live tracker. Contract 1 still uses capture_artifacts."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / SCREENSHOT_FILENAME
+    page.screenshot(path=str(path), type="png", animations="disabled")
+    return _posix(path)
+
+
 def capture_artifacts(page, out_dir: Path) -> dict[str, str]:
     """Write the four artifacts. Returns POSIX paths keyed for SessionArtifacts."""
     out_dir.mkdir(parents=True, exist_ok=True)

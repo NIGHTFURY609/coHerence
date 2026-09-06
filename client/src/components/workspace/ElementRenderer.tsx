@@ -19,6 +19,18 @@ import {
   Check,
 } from "lucide-react";
 import { resolveEmbed, type EmbedInfo } from "@/lib/embedHelper";
+import { canonicalizeSiteUrl, previewUrl } from "@/lib/coherenceApi";
+import { useAuditStore } from "@/stores/auditStore";
+
+function sameSite(a: string, b: string): boolean {
+  const strip = (value: string) => value.replace(/\/+$/, "");
+  if (strip(a) === strip(b)) return true;
+  try {
+    return new URL(a, "https://local").hostname === new URL(b, "https://local").hostname;
+  } catch {
+    return false;
+  }
+}
 
 export default function ElementRenderer({
   element,
@@ -423,9 +435,24 @@ function WebsiteSmartCard({
 // ---------------------------------------------------------------------------
 function WebsiteElementView({ element }: { element: WorkspaceElement }) {
   const { updateElement, deleteElements } = useWorkspaceStore();
+  const audit = useAuditStore();
   const [isEditingUrl, setIsEditingUrl] = useState(false);
   const [urlDraft, setUrlDraft] = useState(element.url || "");
   const [reloadKey, setReloadKey] = useState(0);
+  const jobForThis =
+    !!audit.jobId &&
+    !!element.url &&
+    !!audit.url &&
+    sameSite(audit.url, element.url);
+  const lastEvent = audit.events.at(-1);
+  const waitingOnVl =
+    jobForThis &&
+    audit.status === "running" &&
+    (audit.stage === "vl_wait" ||
+      (typeof lastEvent?.stage === "string" && lastEvent.stage === "vl_wait"));
+  const captureFailed = jobForThis && audit.status === "error";
+  const agentView =
+    jobForThis && !!audit.preview && audit.status !== "error";
 
   const isInteractive = !!element.isInteractive;
   const useProxy = element.useProxy !== false;
@@ -436,15 +463,8 @@ function WebsiteElementView({ element }: { element: WorkspaceElement }) {
   const handleUrlSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const trimmed = urlDraft.trim();
-    if (trimmed && trimmed !== element.url) {
-      let finalUrl = trimmed;
-      if (
-        !finalUrl.startsWith("http://") &&
-        !finalUrl.startsWith("https://") &&
-        !finalUrl.startsWith("/")
-      ) {
-        finalUrl = "https://" + finalUrl;
-      }
+    const finalUrl = canonicalizeSiteUrl(trimmed);
+    if (finalUrl && finalUrl !== element.url) {
       const newInfo = resolveEmbed(finalUrl, useProxy);
       updateElement(element.id, {
         url: finalUrl,
@@ -647,19 +667,64 @@ function WebsiteElementView({ element }: { element: WorkspaceElement }) {
           />
         ) : element.url ? (
           <>
-            <iframe
-              key={reloadKey}
-              id={`iframe-${element.id}`}
-              src={embedInfo.embedUrl}
-              title={element.name || "Embedded website"}
-              className="ws-website-iframe"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              style={{
-                pointerEvents: isInteractive ? "auto" : "none",
-              }}
-            />
-            {isProtected && (
+            {agentView ? (
+              <img
+                className="ws-website-iframe"
+                alt={`${audit.currentProfile || "agent"} view`}
+                src={previewUrl(audit.jobId as string, audit.previewBust)}
+              />
+            ) : (
+              <iframe
+                key={reloadKey}
+                id={`iframe-${element.id}`}
+                src={embedInfo.embedUrl}
+                title={element.name || "Embedded website"}
+                className="ws-website-iframe"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                style={{
+                  pointerEvents: isInteractive ? "auto" : "none",
+                }}
+              />
+            )}
+            {agentView ? (
+              <div className="ws-website-agent-label">
+                Playwright
+                {audit.currentProfile
+                  ? ` · ${audit.currentProfile.replaceAll("_", " ")}`
+                  : ""}
+                {waitingOnVl
+                  ? " · waiting on Nitrogen"
+                  : typeof lastEvent?.selector === "string"
+                    ? ` → ${String(lastEvent.selector)}`
+                    : audit.stage === "diagnose"
+                      ? " · Helium"
+                      : ""}
+              </div>
+            ) : null}
+            {waitingOnVl ? (
+              <div className="ws-website-agent-banner">
+                Chromium is paused. Nitrogen (Qwen VL) is choosing the next
+                click on the B300 — frames update after it returns.
+              </div>
+            ) : null}
+            {captureFailed ? (
+              <div className="ws-website-agent-banner is-error">
+                Playwright did not capture this URL.
+                {audit.error ? ` ${audit.error}` : ""}
+              </div>
+            ) : null}
+            {jobForThis && !captureFailed && audit.warning ? (
+              <div className="ws-website-agent-banner">{audit.warning}</div>
+            ) : null}
+            {jobForThis && audit.status === "running" && !audit.preview ? (
+              <div className="ws-website-agent-banner">
+                Playwright is opening Chromium. The live iframe is not the
+                capture — clicks and screenshots appear here once the first
+                frame lands.
+              </div>
+            ) : null}
+            {isProtected && !agentView && (
               <div
                 className="ws-website-drm-helper"
                 onPointerDown={(e) => e.stopPropagation()}
@@ -686,7 +751,7 @@ function WebsiteElementView({ element }: { element: WorkspaceElement }) {
                 </button>
               </div>
             )}
-            {!isInteractive && (
+            {!isInteractive && !agentView && (
               <div
                 className="ws-website-drag-overlay"
                 title="Click the Hand/Pointer button in toolbar to interact with page"

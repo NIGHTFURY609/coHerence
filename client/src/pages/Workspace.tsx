@@ -4,6 +4,7 @@ import WorkspaceToolbar from "@/components/workspace/WorkspaceToolbar";
 import WorkspaceSideTab from "@/components/workspace/WorkspaceSideTab";
 import WorkspaceStatusbar from "@/components/workspace/WorkspaceStatusbar";
 import WorkspaceContextMenu from "@/components/workspace/WorkspaceContextMenu";
+import PlaywrightDock from "@/components/workspace/PlaywrightDock";
 import { useWorkspaceKeyboard } from "@/hooks/useWorkspaceKeyboard";
 
 export default function Workspace() {
@@ -26,6 +27,7 @@ export default function Workspace() {
       <WorkspaceToolbar />
       <div className="ws-body">
         <WorkspaceCanvas />
+        <PlaywrightDock />
         <WorkspaceSideTab />
       </div>
       <WorkspaceStatusbar />

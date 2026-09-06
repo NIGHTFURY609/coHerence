@@ -18,8 +18,8 @@ This scheme **replaces** the old Dev 3 paths `src/api/`, `src/llm/`, and `src/or
 |---|--------|------|------|
 | 1 | `hydrogen/` | Mathematical engine (this doc + later code) | now |
 | 2 | `helium/` | LLM analyst (Modal) | after Hydrogen is locked |
-| 3 | `lithium/` | FastAPI gateway | after Helium’s I/O is locked |
-| 4 | `beryllium/` | Pipeline orchestrator | integration |
+| 3 | `lithium/` | FastAPI gateway | now |
+| 4 | `beryllium/` | Pipeline orchestrator | now |
 
 Public call names are always `element.verb_object`. Later code should match these names exactly so Lithium and Helium can import them without renaming.
 
@@ -498,13 +498,13 @@ Helium fills the two empty strings. It must **not** change `overall_fairness_sco
 
 ---
 
-## 8. Downstream call names (reserved, not built)
+## 8. Downstream call names
 
-| Future call | IN | OUT | Notes |
-|-------------|----|-----|-------|
-| `helium.diagnose` | `report: HydrogenReport` | `HydrogenReport` | writes `diagnosis`, `remediation_diff`; `analyst = "helium"`; **must not** change score, status, or policy |
-| `lithium.create_report` | HTTP body → `EvidenceBundle` | Contract 3 JSON | calls `hydrogen.evaluate`, then optionally `helium.diagnose` |
-| `beryllium.run_pipeline` | job id, Contract 2 path, **`n_trials`** | `HydrogenReport` | Dev 1 runs each profile `n_trials` times → Dev 2 aggregates → `hydrogen.evaluate`. Hydrogen never sees `n_trials`. |
+| Call | IN | OUT | Notes |
+|------|----|-----|-------|
+| `helium.diagnose` | `report: HydrogenReport` | `HydrogenReport` | writes report-level `diagnosis` / `remediation`; `analyst = "helium"`; **must not** change score, status, or policy |
+| `lithium.create_report` | HTTP body → `EvidenceBundle` | Contract 3 JSON | `hydrogen.evaluate`, then optionally `helium.diagnose` |
+| `beryllium.run_pipeline` | job id, url **or** Contract 2 path, **`n_trials`** | `HydrogenReport` | `boron.run_suite(runs=N)` → Carbon → `hydrogen.evaluate`. Hydrogen never sees `n_trials`. |
 
 ---
 
@@ -566,7 +566,7 @@ Not in `hydrogen-v1`. Do **not** implement these until the policy string bumps (
 | Evidence-strength rank key | Extra sort key on `hydrogen.rank_findings` | Undefined today; do not invent a strength score. |
 | Hard-fail empty input | Optional flag on `hydrogen.evaluate` | v1 returns a report with `null` + `INSUFFICIENT_EVIDENCE`. |
 | Contract 3 requires an integer | Lithium maps `null` at the HTTP edge | Hydrogen still must not emit `100` for missing data. |
-| Helium / Lithium / Beryllium | `helium.diagnose`, `lithium.create_report`, `beryllium.run_pipeline` | Reserved in §8. Must not recompute the score. |
+| Helium / Lithium / Beryllium | `helium.diagnose`, `lithium.create_report`, `beryllium.run_pipeline` | Must not recompute the score. |
 | Weighted average instead of `min` | New policy string only | Default stays worst-group `min`. |
 | Sample size / statistical confidence | New fields on `Disparity` + policy | 1/1 vs 0/1 can look like 1000/1000 vs 500/1000. Fine for v1/hackathon. |
 | Consumer-chosen trial count | `n_trials: int` on the job (Lithium request / `beryllium.run_pipeline`) | Dev 1 repeats each profile N times; Dev 2 does `rate = successes / N`. Default N=1 until then. Hydrogen does **not** take N. |

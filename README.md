@@ -54,7 +54,7 @@ The broader question: **does a design assumption systematically disadvantage a p
 
 ## Getting started
 
-Python 3.10+. The fairness engine lives in `hydrogen/`; the browser capture harness lives in `boron/`.
+Python 3.10+. The fairness engine lives in `hydrogen/`; the browser capture harness lives in `boron/`; the job runner is `beryllium/`; the HTTP gateway is `lithium/`.
 
 Fish:
 
@@ -88,6 +88,14 @@ python -m playwright install chromium
 ```
 
 Without it the `tests/test_boron_runner.py` tests are skipped; the rest of the suite still runs.
+
+API (after the pip step):
+
+```
+uvicorn lithium.app:app --reload --port 8000
+```
+
+Workspace UI (`pnpm dev` on port 3000) proxies `/api/jobs` to Lithium. Embed **Demo checkout**, then **Audit**. Capture screenshots appear in the side tab as each profile runs.
 
 ## License
 

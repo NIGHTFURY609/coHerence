@@ -30,6 +30,9 @@ export function resolveEmbed(rawUrl?: string, useProxy: boolean = true): EmbedIn
   if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("/")) {
     url = "https://" + url;
   }
+  const sameOrigin =
+    url.startsWith("/") ||
+    (typeof window !== "undefined" && url.startsWith(window.location.origin));
 
   let hostname = "";
   try {
@@ -136,16 +139,18 @@ export function resolveEmbed(rawUrl?: string, useProxy: boolean = true): EmbedIn
     };
   }
 
-  // 6. General websites
+  // 6. General websites. Same-origin pages (the demo fixture) are the
+  // product under test — do not send them through /api/proxy-site, which
+  // is a Vite preview helper, not Lithium/Boron.
   return {
     originalUrl: rawUrl,
     formattedUrl: url,
-    embedUrl: useProxy ? `/api/proxy-site?url=${encodeURIComponent(url)}` : url,
+    embedUrl: sameOrigin || !useProxy ? url : `/api/proxy-site?url=${encodeURIComponent(url)}`,
     platform: "general",
-    platformName: hostname,
-    title: hostname,
+    platformName: hostname || url,
+    title: hostname || url,
     faviconUrl,
-    canDirectIframe: false,
+    canDirectIframe: sameOrigin,
     isStreamingProtected: false,
   };
 }

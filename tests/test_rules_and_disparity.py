@@ -391,6 +391,8 @@ def test_evidence_store_handoff(tmp_path):
     assert len(loaded_store.evidence) == 1
     assert len(loaded_store.disparities) == 1
     assert loaded_store.evidence[0].element_selector == "button#submit-order"
+    assert loaded_store.profiles_tested == []
+    assert store.to_contract2_dict()["profiles_tested"] == []
 
 
 # ==============================================================================

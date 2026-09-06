@@ -88,6 +88,48 @@ def test_run_suite_mints_unique_sessions_per_profile(tmp_path):
     assert len({r.artifacts.html_path for r in records}) == 2
 
 
+def test_run_suite_emits_step_previews(tmp_path):
+    events = []
+    run_suite(
+        url=FIXTURE_URL,
+        profile_ids=["baseline_default"],
+        session_id_prefix="sess_live",
+        steps=STEPS,
+        success_selector=SUCCESS,
+        out_root=str(tmp_path),
+        on_progress=events.append,
+    )
+    stages = [e["stage"] for e in events]
+    assert "page_ready" in stages
+    assert stages.count("step") == len(STEPS)
+    shots = [e["screenshot"] for e in events if e.get("screenshot")]
+    assert shots and Path(shots[-1]).stat().st_size > 0
+    assert any(e.get("selector") == "#fake-button" for e in events)
+
+
+def test_goal_path_emits_vl_wait_before_the_model(tmp_path):
+    from nitrogen import MockVLClient
+
+    events = []
+    run_suite(
+        url=FIXTURE_URL,
+        profile_ids=["baseline_default"],
+        session_id_prefix="sess_vl",
+        goal="Place the order",
+        success_selector=SUCCESS,
+        vl_client=MockVLClient(
+            '{"action": "click", "x": 500, "y": 80, "target": "Place order"}'
+        ),
+        max_steps=2,
+        out_root=str(tmp_path),
+        on_progress=events.append,
+    )
+    stages = [e["stage"] for e in events]
+    assert "page_ready" in stages
+    assert "vl_wait" in stages
+    assert stages.index("vl_wait") > stages.index("page_ready")
+
+
 def test_run_suite_repeats_are_not_identical(tmp_path):
     records = run_suite(
         url=FIXTURE_URL,

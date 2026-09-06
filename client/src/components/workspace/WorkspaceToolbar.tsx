@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { useWorkspaceStore, type ToolType } from "@/stores/workspaceStore";
 import { toast } from "sonner";
 import {
@@ -26,6 +26,8 @@ import {
   Globe,
 } from "lucide-react";
 import AddWebsiteModal from "./AddWebsiteModal";
+import RunAuditModal from "./RunAuditModal";
+import { cancelAudit, useAuditStore } from "@/stores/auditStore";
 
 const tools: { tool: ToolType; icon: typeof Square; label: string; group: number }[] = [
   { tool: "select", icon: MousePointer2, label: "Select (V)", group: 0 },
@@ -43,6 +45,7 @@ const tools: { tool: ToolType; icon: typeof Square; label: string; group: number
 export default function WorkspaceToolbar() {
   const {
     elements,
+    selectedIds,
     activeTool,
     setActiveTool,
     addElement,
@@ -62,19 +65,31 @@ export default function WorkspaceToolbar() {
 
   const [exportOpen, setExportOpen] = useState(false);
   const [isWebsiteModalOpen, setIsWebsiteModalOpen] = useState(false);
+  const [isAuditOpen, setIsAuditOpen] = useState(false);
+  const auditRunning = useAuditStore((s) => s.running);
+  const auditStage = useAuditStore((s) => s.stage);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
 
   const groups = [0, 1, 2];
   const zoomPct = Math.round(canvas.zoom * 100);
 
+  useEffect(() => {
+    const openWebsite = () => setIsWebsiteModalOpen(true);
+    window.addEventListener("coherence-add-website", openWebsite);
+    return () => window.removeEventListener("coherence-add-website", openWebsite);
+  }, []);
+
   const handleToolClick = (tool: ToolType) => {
-    setActiveTool(tool);
     if (tool === "image") {
       imageInputRef.current?.click();
-    } else if (tool === "website") {
-      setIsWebsiteModalOpen(true);
+      return;
     }
+    if (tool === "website") {
+      setIsWebsiteModalOpen(true);
+      return;
+    }
+    setActiveTool(tool);
   };
 
   const handleAddWebsite = (
@@ -199,32 +214,18 @@ export default function WorkspaceToolbar() {
   };
 
   const runFairnessAudit = useCallback(() => {
-    if (elements.length === 0) {
-      toast.info("No elements on canvas to evaluate");
+    const selected = elements.filter(
+      (e) => e.type === "website" && e.url && selectedIds.includes(e.id),
+    );
+    const websites = selected.length
+      ? selected
+      : elements.filter((e) => e.type === "website" && e.url);
+    if (websites.length === 0) {
+      toast.info("Embed a website first, then run Audit");
       return;
     }
-    const smallTargets = elements.filter(
-      (e) => (e.type === "rectangle" || e.type === "ellipse") && (e.width < 48 || e.height < 48),
-    );
-    const smallText = elements.filter(
-      (e) => e.type === "text" && e.fontSize && e.fontSize < 12,
-    );
-    const score = Math.max(
-      40,
-      100 - smallTargets.length * 10 - smallText.length * 5,
-    );
-
-    if (smallTargets.length > 0) {
-      toast.warning(
-        `Fairness Score: ${score}/100 — ${smallTargets.length} interactive target(s) fail the 48x48px standard for motor impairment.`,
-        { duration: 5000 },
-      );
-    } else {
-      toast.success(`Fairness Score: ${score}/100 — Touch targets & readability verified!`, {
-        duration: 4000,
-      });
-    }
-  }, [elements]);
+    setIsAuditOpen(true);
+  }, [elements, selectedIds]);
 
   return (
     <header className="ws-toolbar">
@@ -276,11 +277,15 @@ export default function WorkspaceToolbar() {
         <button
           type="button"
           className="ws-toolbar-audit-btn"
-          title="Run Accessibility & Fairness Audit"
+          title={
+            auditRunning
+              ? `Capturing${auditStage ? ` · ${auditStage}` : ""} — click to cancel or restart`
+              : "Run Accessibility & Fairness Audit"
+          }
           onClick={runFairnessAudit}
         >
           <Sparkles size={13} style={{ color: "#D85C45" }} />
-          <span>Audit</span>
+          <span>{auditRunning ? "Capturing…" : "Audit"}</span>
         </button>
 
         <div className="ws-toolbar-divider" />
@@ -417,6 +422,17 @@ export default function WorkspaceToolbar() {
         isOpen={isWebsiteModalOpen}
         onClose={() => setIsWebsiteModalOpen(false)}
         onAdd={handleAddWebsite}
+      />
+      <RunAuditModal
+        isOpen={isAuditOpen}
+        onClose={() => setIsAuditOpen(false)}
+        url={
+          (
+            elements.find(
+              (e) => e.type === "website" && e.url && selectedIds.includes(e.id),
+            ) ?? elements.find((e) => e.type === "website" && e.url)
+          )?.url || ""
+        }
       />
     </header>
   );

@@ -303,9 +303,9 @@ const DEFAULTS: Record<ElementType, Partial<WorkspaceElement>> = {
     cornerRadius: 8,
     opacity: 1,
     fillOpacity: 1,
-    url: "https://wikipedia.org",
-    isInteractive: false,
-    useProxy: true,
+    url: "/demo/checkout.html",
+    isInteractive: true,
+    useProxy: false,
     viewMode: "live",
   },
 };
@@ -324,7 +324,31 @@ function nameForType(type: ElementType, elements: WorkspaceElement[]): string {
   return `${labels[type]} ${count}`;
 }
 
-const INITIAL_ELEMENTS: WorkspaceElement[] = [];
+const INITIAL_ELEMENTS: WorkspaceElement[] = [
+  {
+    id: "demo-checkout",
+    type: "website",
+    name: "Demo checkout",
+    x: 64,
+    y: 48,
+    width: 840,
+    height: 560,
+    rotation: 0,
+    opacity: 1,
+    visible: true,
+    locked: false,
+    parentId: null,
+    fill: "#1e1e1e",
+    fillOpacity: 1,
+    stroke: "rgba(255,255,255,0.15)",
+    strokeWidth: 1,
+    cornerRadius: 8,
+    url: "/demo/checkout.html",
+    isInteractive: true,
+    useProxy: false,
+    viewMode: "live",
+  },
+];
 
 // ---------------------------------------------------------------------------
 // Store

@@ -33,10 +33,10 @@ const IMAGE_URLS = {
 };
 
 const facilityFilters = [
-  { id: "safety", label: "Safety", color: "clay", description: "Lighting, visibility and the final walk home." },
-  { id: "care", label: "Care", color: "pistachio", description: "Childcare that sits close to where women work." },
-  { id: "health", label: "Health", color: "blue", description: "Healthcare within the shape of a daily route." },
-  { id: "transit", label: "Transit", color: "ink", description: "The connection between a shift and a safe return." },
+  { id: "safety", label: "Motor", color: "clay", description: "Tremor, dwell, and missed clicks on undersized targets." },
+  { id: "care", label: "Keyboard", color: "pistachio", description: "Tab order, unnamed controls, and traps that a pointer never meets." },
+  { id: "health", label: "Vision", color: "blue", description: "Contrast, zoom, and what remains readable at 200%." },
+  { id: "transit", label: "Baseline", color: "ink", description: "The unconstrained path every other profile is measured against." },
 ] as const;
 
 const chapters = [
@@ -125,15 +125,15 @@ function FacilityMap() {
   return (
     <div className="facility-visual" data-reveal>
       <div className="facility-image-wrap">
-        <img src={IMAGE_URLS.facility} alt="Illustrated city block with facility and route markers" className="facility-image" />
+        <img src={IMAGE_URLS.facility} alt="Illustrated layout used as a stand-in for an interface under test" className="facility-image" />
         <div className="map-scan-line" aria-hidden="true" />
         <div className="facility-pin pin-one"><span className="pin-pulse" /><ShieldCheck size={14} /></div>
         <div className="facility-pin pin-two"><span className="pin-pulse" /><Sparkles size={14} /></div>
         <div className="facility-pin pin-three"><span className="pin-pulse" /><Route size={14} /></div>
         <div className="facility-gap-label">
           <span className="mini-label">Illustrative scan</span>
-          <strong>Facility desert</strong>
-          <span>High workforce presence · low access</span>
+          <strong>Constraint gap</strong>
+          <span>High baseline success · low constrained access</span>
         </div>
         <div className="facility-compass" aria-hidden="true"><Compass size={17} /><span>N</span></div>
       </div>
@@ -312,8 +312,8 @@ function Home() {
 
   const lensItems = useMemo(
     () => [
-      { index: "01", label: "Facility gap mapping", title: "See the route behind the statistic.", body: "Map where women work, then layer the services a day actually asks for: safety, childcare, healthcare and transit.", className: "lens-card-main", image: IMAGE_URLS.facility },
-      { index: "02", label: "Workforce data dashboard", title: "Count who was never counted.", body: "Bring working, educated and non-working women into the same evidence layer, region by region.", className: "lens-card-secondary", image: IMAGE_URLS.workforce },
+      { index: "01", label: "Constrained capture", title: "See the route behind the statistic.", body: "Drive the same task as a baseline user, then as motor, keyboard, and vision constraints. The page does not change. The path does.", className: "lens-card-main", image: IMAGE_URLS.facility },
+      { index: "02", label: "Fairness score", title: "Count who was never counted.", body: "Completion, time, errors, and friction become one integer. Findings name the control. Diagnosis comes after the number, never instead of it.", className: "lens-card-secondary", image: IMAGE_URLS.workforce },
     ],
     [],
   );
@@ -380,9 +380,9 @@ function Home() {
         <section id="top" className="hero">
           <div className="hero-contours" aria-hidden="true"><MiniContour /><MiniContour className="contour-two" /></div>
           <div className="hero-copy-wrap">
-            <div className="hero-kicker hero-reveal"><span className="kicker-dot" />A civic data layer for her everyday</div>
-            <h1 className="hero-title hero-reveal">The world was built <em>around</em> her.</h1>
-            <p className="hero-deck hero-reveal">CoHERence makes the gaps visible—so the next street, service and system can be designed around women’s real lives.</p>
+            <div className="hero-kicker hero-reveal"><span className="kicker-dot" />Inclusive software testing playground</div>
+            <h1 className="hero-title hero-reveal">Who does this software <em>work for</em>?</h1>
+            <p className="hero-deck hero-reveal">CoHERence runs constrained users through a product, scores the gaps, and shows why a default path is harder for some people than others.</p>
             <div className="hero-actions hero-reveal">
               <MagneticButton href="/workspace" variant="clay">Open Workspace</MagneticButton>
               <a className="text-link" href="#gap">Why this matters <ArrowDownRight size={16} /></a>
@@ -390,31 +390,31 @@ function Home() {
           </div>
           <div className="hero-visual hero-reveal">
             <div className="hero-image-frame">
-              <img className="hero-image" src={IMAGE_URLS.hero} alt="Editorial aerial map illustration with routes and public infrastructure markers" />
+              <img className="hero-image" src={IMAGE_URLS.hero} alt="Editorial map of routes used as a metaphor for interaction paths" />
               <div className="hero-image-shade" />
               <div className="hero-stamp"><span>FIELD NOTE</span><strong>01</strong></div>
               <div className="hero-coordinate"><span>20°35' N</span><span>72°52' E</span></div>
             </div>
-            <div className="hero-caption"><span className="caption-line" />An atlas for the invisible work of getting through a day.</div>
+            <div className="hero-caption"><span className="caption-line" />An atlas of who can finish the task, and who cannot.</div>
           </div>
-          <div className="hero-bottom-note"><span>Scroll to map the gap</span><ArrowDownRight size={15} /></div>
+          <div className="hero-bottom-note"><span>Scroll to the gap</span><ArrowDownRight size={15} /></div>
         </section>
 
         <section id="gap" className="gap-section section-pad">
           <div className="section-marker" data-reveal><span>01 / The gap</span><span>What is missing is measurable.</span></div>
           <div className="gap-grid">
             <div className="gap-intro" data-reveal>
-              <p className="eyebrow">The daily calculation</p>
-              <h2>Every detour is a data point.</h2>
+              <p className="eyebrow">The default user</p>
+              <h2>Every extra click is a data point.</h2>
             </div>
             <div className="gap-copy" data-reveal>
-              <p className="lead-copy">A streetlight out. A childcare centre too far from the shift. A clinic that disappears behind a bus route. These are not isolated inconveniences—they are signals of a world that still plans around a default that is not her.</p>
-              <div className="inline-note"><CircleHelp size={17} /><span>CoHERence turns the qualitative into a traceable, prioritised gap score.</span></div>
+              <p className="lead-copy">A 24px pay button. A clickable div with no keyboard path. Instructions that only make sense if you can see them. These are not edge cases—they are signals of an interface planned around one unconstrained user.</p>
+              <div className="inline-note"><CircleHelp size={17} /><span>CoHERence turns those observations into a traceable fairness score and a ranked list of findings.</span></div>
             </div>
           </div>
           <div className="gap-art" data-reveal>
             <div className="gap-art-background"><MiniContour /></div>
-            <div className="gap-art-quote">“The missing facility is a data point before it becomes a daily burden.”</div>
+            <div className="gap-art-quote">“The missing keyboard path is a data point before it becomes a dropped task.”</div>
             <div className="gap-art-index"><span>FIELD NOTE</span><strong>02</strong></div>
           </div>
         </section>
@@ -422,10 +422,10 @@ function Home() {
         <section className="map-section section-pad section-dark" aria-labelledby="map-title">
           <div className="map-section-grid">
             <div className="map-copy" data-reveal>
-              <p className="eyebrow eyebrow-light">Facility gap mapping</p>
-              <h2 id="map-title">See where care should meet the commute.</h2>
-              <p>Layer female-workforce presence against the services that make a route possible. A facility desert is not an empty map—it is a design decision waiting to be seen.</p>
-              <div className="map-meta"><span className="meta-pulse" />Illustrative city scan / district view</div>
+              <p className="eyebrow eyebrow-light">Constraint profiles</p>
+              <h2 id="map-title">See who the path actually serves.</h2>
+              <p>Layer motor, keyboard, and vision constraints on the same task. A fairness gap is not a persona story—it is a measured difference in completion, time, and errors.</p>
+              <div className="map-meta"><span className="meta-pulse" />Illustrative profile scan / workspace view</div>
             </div>
             <FacilityMap />
           </div>
@@ -435,7 +435,7 @@ function Home() {
           <div className="section-marker" data-reveal><span>02 / Two lenses</span><span>One coherent view.</span></div>
           <div className="layers-heading" data-reveal>
             <h2>From scattered signals<br /><em>to shared ground.</em></h2>
-            <p>The platform connects the spatial layer to the workforce layer, so planners can move from “where is the gap?” to “who is living with it?”</p>
+            <p>The platform connects capture to score, so a designer can move from “does this work?” to “who does it work for, and why?”</p>
           </div>
           <div className="lens-stack">
             {lensItems.map((item, index) => (
@@ -462,21 +462,21 @@ function Home() {
         <section className="workforce-section section-pad section-tan" aria-labelledby="workforce-title">
           <div className="workforce-grid">
             <div className="workforce-visual" data-reveal>
-              <img src={IMAGE_URLS.workforce} alt="Woman reviewing printed workforce charts in a community resource center" />
-              <div className="workforce-caption"><span>Workforce layer</span><strong>the people behind the place</strong></div>
+              <img src={IMAGE_URLS.workforce} alt="Reviewing measured outcomes after a constrained run" />
+              <div className="workforce-caption"><span>Outcome layer</span><strong>the people the path left behind</strong></div>
             </div>
             <div className="workforce-copy" data-reveal>
-              <p className="eyebrow">What the dashboard holds</p>
+              <p className="eyebrow">What the report holds</p>
               <h2>Count the whole picture.</h2>
-              <p className="lead-copy">Working. Educated. Looking for work. At a district level, those categories stop being footnotes and become a living picture of where support can unlock participation.</p>
-              <div className="workforce-chart" aria-label="Illustrative workforce data categories">
-                <div className="chart-title"><span>Workforce view</span><span>District level</span></div>
+              <p className="lead-copy">Task completion. Extra time. Dead clicks. At a profile level those stop being anecdotes and become the fairness integer Hydrogen owns.</p>
+              <div className="workforce-chart" aria-label="Illustrative outcome categories">
+                <div className="chart-title"><span>Outcome view</span><span>Profile level</span></div>
                 <div className="chart-rows">
-                  <div className="chart-row"><span>Working</span><span className="chart-bar"><i style={{ width: "82%" }} /></span><span>presence</span></div>
-                  <div className="chart-row"><span>Educated</span><span className="chart-bar"><i style={{ width: "67%" }} /></span><span>potential</span></div>
-                  <div className="chart-row"><span>Not working</span><span className="chart-bar"><i style={{ width: "44%" }} /></span><span>signal</span></div>
+                  <div className="chart-row"><span>Completion</span><span className="chart-bar"><i style={{ width: "82%" }} /></span><span>outcome</span></div>
+                  <div className="chart-row"><span>Time</span><span className="chart-bar"><i style={{ width: "67%" }} /></span><span>friction</span></div>
+                  <div className="chart-row"><span>Errors</span><span className="chart-bar"><i style={{ width: "44%" }} /></span><span>signal</span></div>
                 </div>
-                <div className="chart-footnote"><span className="chart-footnote-dot" />Illustrative categories from the workforce data layer</div>
+                <div className="chart-footnote"><span className="chart-footnote-dot" />Illustrative categories from the fairness layer</div>
               </div>
             </div>
           </div>
@@ -485,26 +485,26 @@ function Home() {
         <section id="impact" className="impact-section section-pad">
           <div className="section-marker" data-reveal><span>03 / What changes</span><span>Evidence becomes agency.</span></div>
           <div className="impact-heading" data-reveal>
-            <div><p className="eyebrow">Why it matters</p><h2>A better map changes<br /><em>what gets built next.</em></h2></div>
-            <p>CoHERence is designed to plug into public data systems—not sit beside them. The goal is not another dashboard. It is a new default for what gets noticed.</p>
+            <div><p className="eyebrow">Why it matters</p><h2>A better test changes<br /><em>what gets built next.</em></h2></div>
+            <p>CoHERence is unit testing for inclusive design. The goal is not another linter. It is a new default for whose path gets noticed.</p>
           </div>
           <div className="impact-grid">
             <div className="impact-card impact-card-feature" data-reveal>
               <div className="impact-card-top"><span>01</span><Route size={18} /></div>
               <h3>Fewer invisible trade-offs.</h3>
-              <p>When essential services sit along the real route, safety stops being an individual workaround.</p>
+              <p>When the primary action is reachable by keyboard and large enough to hit, completion stops being a pointer privilege.</p>
               <div className="impact-graphic route-graphic"><span /><span /><span /><span /></div>
             </div>
             <div className="impact-card" data-reveal>
               <div className="impact-card-top"><span>02</span><ShieldCheck size={18} /></div>
-              <h3>Stronger retention.</h3>
-              <p>Better infrastructure closes the gap between entering work and being able to stay.</p>
+              <h3>Stronger paths.</h3>
+              <p>Named findings and a locked score close the gap between “it works here” and “it works for these users.”</p>
               <div className="impact-number">stay<span>+</span></div>
             </div>
             <div className="impact-card" data-reveal>
               <div className="impact-card-top"><span>03</span><Compass size={18} /></div>
               <h3>Repeatable by design.</h3>
-              <p>Any district with facility and workforce data can run the same gap analysis.</p>
+              <p>Any page with a URL and a task can run the same capture, rules, and score.</p>
               <div className="impact-graphic repeat-graphic"><i /><i /><i /><i /><i /></div>
             </div>
           </div>
@@ -514,18 +514,18 @@ function Home() {
           <div className="explore-contours" aria-hidden="true"><MiniContour /><MiniContour className="contour-two" /></div>
           <div className="explore-content" data-reveal>
             <p className="eyebrow eyebrow-light">The next layer is yours</p>
-            <h2>Design for the life<br /><em>behind the data.</em></h2>
-            <p>CoHERence is a starting point for planners, researchers and public systems ready to make the invisible legible.</p>
-            <MagneticButton href="mailto:hello@coherence.world" variant="light">Start a conversation</MagneticButton>
+            <h2>Test for the life<br /><em>behind the default.</em></h2>
+            <p>Put a product in the workspace, run constrained users through it, and watch the path as it happens.</p>
+            <MagneticButton href="/workspace" variant="light">Open Workspace</MagneticButton>
           </div>
           <div className="explore-aside" data-reveal><CoherenceSymbol /><span>CoHERence / field note 03</span></div>
         </section>
       </main>
 
       <footer className="site-footer">
-        <div className="footer-brand"><a className="brand-lockup" href="#top"><Mark small /><span>Co<span className="brand-emphasis">HER</span>ence</span></a><p>The world redesigned for her.</p></div>
+        <div className="footer-brand"><a className="brand-lockup" href="#top"><Mark small /><span>Co<span className="brand-emphasis">HER</span>ence</span></a><p>Inclusive testing for the people the default left out.</p></div>
         <div className="footer-links"><a href="#gap">The gap <ArrowUpRight size={14} /></a><a href="#layers">Two lenses <ArrowUpRight size={14} /></a><a href="#impact">Why it matters <ArrowUpRight size={14} /></a></div>
-        <div className="footer-end"><span>Made for the places that hold us.</span><span>© 2026 CoHERence</span></div>
+        <div className="footer-end"><span>Made for the paths that fail quietly.</span><span>© 2026 CoHERence</span></div>
       </footer>
     </div>
   );

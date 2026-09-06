@@ -34,6 +34,9 @@ COORDINATE_SCALE = 1000
 # is worth giving; a second identical claim means it is not going to re-examine
 # the page, and the run should end rather than spend the budget arguing.
 MAX_UNVERIFIED_DONE = 2
+# Observed live on Wikipedia: Qwen3-VL clicked the same dead heading 12 times
+# after being told it did nothing. Two identical misses is enough.
+MAX_IDENTICAL_DEAD = 2
 
 _ACTIONS_POINTER = """{"action": "click", "x": <int>, "y": <int>, "target": "<what you are aiming at>"}
 {"action": "press", "key": "Tab" | "Shift+Tab" | "Enter"}
@@ -129,6 +132,7 @@ def navigate(
     max_steps: int = MAX_STEPS,
     errors=None,
     counters=None,
+    emit=None,
 ) -> NavResult:
     """Drive the page toward `goal`. Mutates `counters` / `errors` in place.
 
@@ -161,6 +165,8 @@ def navigate(
             profile, goal, image_b64, ax_text, (width, height), history
         )
         started = time.perf_counter()
+        if emit is not None:
+            emit({"stage": "vl_wait", "selector": "nitrogen"})
         try:
             raw = vl_client.complete(system, user, image_b64=image_b64)
         except Exception as exc:
@@ -215,10 +221,31 @@ def navigate(
         unverified_done = 0
         history.append(_outcome(action, entry))
         page.wait_for_timeout(50)
+        if emit is not None:
+            emit(
+                {
+                    "stage": "step",
+                    "selector": entry.get("aimed_selector") or verb,
+                    "action": verb,
+                }
+            )
+        if entry.get("error") and _identical_dead_count(result.trace, entry) >= MAX_IDENTICAL_DEAD:
+            errors.append("repeated dead click; stopping")
+            break
 
     if not result.completed:
         result.completed = is_visible(page, success_selector)
     return result
+
+
+def _identical_dead_count(trace: list[dict], entry: dict) -> int:
+    key = (entry.get("action"), entry.get("aimed_selector"), entry.get("x"), entry.get("y"))
+    return sum(
+        1
+        for row in trace
+        if row.get("error")
+        and (row.get("action"), row.get("aimed_selector"), row.get("x"), row.get("y")) == key
+    )
 
 
 def _outcome(action: dict, entry: dict) -> str:
